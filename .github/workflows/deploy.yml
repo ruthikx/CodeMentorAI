@@ -1,0 +1,45 @@
+# Required GitHub Actions secrets for deploy:
+# - VERCEL_TOKEN: Vercel API token for production frontend deploys, if using token-based deploys.
+# - VERCEL_DEPLOY_HOOK_URL: Vercel deploy hook URL used by this workflow.
+# - RENDER_DEPLOY_HOOK_URL: Render backend deploy hook URL used by this workflow.
+# - RENDER_PRISMA_MIGRATE_HOOK_URL: Render deploy hook that runs Prisma migrations.
+# - RENDER_BACKEND_URL: Public backend base URL used for the post-deploy /api/health smoke test.
+# - GROQ_API_KEY: Production Groq API key configured on the backend deploy environment.
+#
+# CI-only secrets are not required by this workflow:
+# - DATABASE_URL
+
+name: Deploy
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    name: Deploy Frontend and Backend
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Trigger Vercel frontend deploy
+        run: curl -fsS -X POST "${{ secrets.VERCEL_DEPLOY_HOOK_URL }}"
+
+      - name: Trigger Render backend deploy
+        run: curl -fsS -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}"
+
+      - name: Run Prisma migrations on Render deploy hook
+        run: curl -fsS -X POST "${{ secrets.RENDER_PRISMA_MIGRATE_HOOK_URL }}"
+
+      - name: Post-deploy backend smoke test
+        run: |
+          for attempt in {1..20}; do
+            if curl -fsS "${{ secrets.RENDER_BACKEND_URL }}/api/health"; then
+              exit 0
+            fi
+            sleep 15
+          done
+          exit 1

@@ -1,0 +1,28 @@
+{
+  "name": "@codementor-ai/ai",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    "./provider": "./provider.ts",
+    "./prompts": "./prompts.ts",
+    "./parser": "./parser.ts",
+    "./fallback": "./fallback.ts"
+  },
+  "scripts": {
+    "lint": "tsc --noEmit --allowImportingTsExtensions --module NodeNext --moduleResolution NodeNext --target ES2022 --strict --skipLibCheck parser.ts fallback.ts provider.ts prompts.ts tests/eval.ts",
+    "typecheck": "tsc --noEmit --allowImportingTsExtensions --module NodeNext --moduleResolution NodeNext --target ES2022 --strict --skipLibCheck parser.ts fallback.ts provider.ts prompts.ts tests/eval.ts",
+    "test": "jest --config jest.config.cjs",
+    "eval": "tsx tests/eval.ts"
+  },
+  "dependencies": {
+    "@codementor-ai/types": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/jest": "^30.0.0",
+    "@types/node": "^22.7.4",
+    "tsx": "^4.19.1",
+    "tsx": "^4.21.0",
+    "typescript": "^5.6.2"
+  }
+}

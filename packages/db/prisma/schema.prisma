@@ -1,0 +1,105 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserTier {
+  free
+  pro
+  team
+}
+
+enum ReviewStatus {
+  pending
+  processing
+  complete
+  failed
+}
+
+enum ReviewProvider {
+  groq
+  gemini
+}
+
+enum ReviewSeverity {
+  style
+  best_practice
+  logic
+  security
+}
+
+model User {
+  id              String           @id @default(uuid()) @db.Uuid
+  email           String           @unique @db.VarChar(255)
+  name            String?
+  avatarUrl       String?
+  githubId        BigInt?          @unique
+  tier            UserTier
+  createdAt       DateTime         @default(now())
+  lastActiveAt    DateTime?
+  codeSubmissions CodeSubmission[]
+  learningMetrics LearningMetrics?
+}
+
+model CodeSubmission {
+  id            String         @id @default(uuid()) @db.Uuid
+  userId        String         @db.Uuid
+  language      String         @db.VarChar(100)
+  sourceCode    String
+  filename      String?
+  githubPrId    BigInt?
+  submittedAt   DateTime       @default(now())
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reviewResults ReviewResult[]
+
+  @@index([userId, submittedAt])
+  @@index([githubPrId])
+}
+
+model ReviewResult {
+  id               String         @id @default(uuid()) @db.Uuid
+  submissionId     String         @db.Uuid
+  status           ReviewStatus
+  totalIssues      Int            @default(0)
+  modelUsed        String?
+  providerUsed     ReviewProvider
+  promptTokens     Int?
+  completionTokens Int?
+  completedAt      DateTime?
+  submission       CodeSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  reviewIssues     ReviewIssue[]
+}
+
+model ReviewIssue {
+  id           String         @id @default(uuid()) @db.Uuid
+  reviewId     String         @db.Uuid
+  severity     ReviewSeverity
+  category     String
+  lineStart    Int
+  lineEnd      Int
+  title        String
+  explanation  String
+  suggestedFix String
+  accepted     Boolean        @default(false)
+  review       ReviewResult   @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+
+  @@index([reviewId])
+  @@index([severity, category])
+}
+
+model LearningMetrics {
+  id                    String   @id @default(uuid()) @db.Uuid
+  userId                String   @unique @db.Uuid
+  totalSubmissions      Int      @default(0)
+  totalReviews          Int      @default(0)
+  issuesResolved        Int      @default(0)
+  averageResolutionRate Float?
+  currentStreak         Int      @default(0)
+  longestStreak         Int      @default(0)
+  updatedAt             DateTime @updatedAt
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
