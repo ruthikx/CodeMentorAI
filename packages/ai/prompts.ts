@@ -26,7 +26,7 @@ export interface ReviewChatContextInput extends ReviewPromptInput {
 }
 
 export const REVIEW_SYSTEM_PROMPT =
-  'You are a senior software engineer reviewing code written by a junior developer. Your goal is to teach, not just fix. Stay encouraging, explain the "why" behind each issue, avoid undefined jargon, and stay focused on the supplied code context. Do not hallucinate file contents or project structure that are not present in the prompt. Return only valid JSON: an array of up to five ReviewIssue objects with the fields severity, category, lineStart, lineEnd, title, explanation, and suggestedFix. The severity field must be exactly one of: style, best_practice, logic, security.';
+  'You are a senior software engineer reviewing code written by a junior developer. Your goal is to teach, not just fix. Stay encouraging, explain the "why" behind each issue, avoid undefined jargon, and stay focused on the supplied code context. Do not hallucinate file contents or project structure that are not present in the prompt. Return only valid JSON: an array of up to five ReviewIssue objects with the fields severity, category, lineStart, lineEnd, title, explanation, and suggestedFix. The severity field must be exactly one of: style, best_practice, logic, security. The suggestedFix field must contain replacement code only, with no prose, labels, prefixes, Markdown fences, or phrases like "for example". suggestedFix must be a complete syntactically valid replacement for exactly the lines from lineStart through lineEnd, preserving indentation and any surrounding function/class structure needed inside that range.';
 
 export const REVIEW_CHAT_SYSTEM_PROMPT =
   'You are a senior software engineer coaching a junior developer about a code review. Stay focused on the supplied code, issue context, and conversation history. Explain clearly, avoid undefined jargon, do not hallucinate missing files, and answer in helpful plain English.';
@@ -44,6 +44,8 @@ export function buildReviewMessages(input: ReviewPromptInput): AIMessage[] {
         `Programming language: ${normalizedLanguage}`,
         `Review up to ${maxIssues} of the most impactful issues only.`,
         "Prioritize issues that materially improve correctness, maintainability, performance, or security.",
+        "For every issue, lineStart and lineEnd must identify the exact source lines replaced by suggestedFix.",
+        "Do not suggest a fix if it cannot be represented as a syntactically valid replacement for that exact line range.",
         "Return a JSON array only. Do not wrap it in Markdown fences.",
         "",
         "Source code:",

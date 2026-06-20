@@ -149,7 +149,7 @@ export function validateReviewIssue(input: unknown): ParsedIssuePayload {
   const category = expectNonEmptyString(input.category, "category");
   const title = expectNonEmptyString(input.title, "title");
   const explanation = expectNonEmptyString(input.explanation, "explanation");
-  const suggestedFix = expectString(input.suggestedFix, "suggestedFix");
+  const suggestedFix = normalizeSuggestedFix(expectString(input.suggestedFix, "suggestedFix"));
   const lineStart = expectPositiveInteger(input.lineStart, "lineStart");
   const lineEnd = expectPositiveInteger(input.lineEnd, "lineEnd");
 
@@ -166,6 +166,46 @@ export function validateReviewIssue(input: unknown): ParsedIssuePayload {
     explanation,
     suggestedFix
   };
+}
+
+function normalizeSuggestedFix(suggestedFix: string): string {
+  const trimmed = stripMarkdownFence(suggestedFix.trim());
+  const colonSeparatedCode = extractCodeAfterProsePrefix(trimmed);
+
+  if (colonSeparatedCode) {
+    return colonSeparatedCode;
+  }
+
+  return trimmed;
+}
+
+function stripMarkdownFence(value: string): string {
+  return value
+    .replace(/^```[a-zA-Z0-9_-]*\s*/u, "")
+    .replace(/```$/u, "")
+    .trim();
+}
+
+function extractCodeAfterProsePrefix(value: string): string | null {
+  const prefixMatch = value.match(/\b(?:for example|e\.g\.|try this|use this|replace with)\s*:\s*/iu);
+  if (!prefixMatch?.index) {
+    return null;
+  }
+
+  const candidate = value.slice(prefixMatch.index + prefixMatch[0].length).trim();
+  if (!looksLikeCode(candidate)) {
+    return null;
+  }
+
+  return candidate;
+}
+
+function looksLikeCode(value: string): boolean {
+  if (value.length === 0) {
+    return false;
+  }
+
+  return /[(){}[\]=;<>]/u.test(value) || /^\s*(for|if|while|def|class|const|let|var|return|print|import|from)\b/u.test(value);
 }
 
 function normalizeSeverity(value: unknown): ReviewSeverity | null {

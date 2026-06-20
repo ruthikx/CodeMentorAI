@@ -24,6 +24,12 @@ interface ChatBody {
   }>;
 }
 
+interface FinalCodeResponse {
+  code: string;
+  providerUsed: string;
+  modelUsed: string;
+}
+
 export const reviewsRouter = Router();
 
 reviewsRouter.post(
@@ -212,6 +218,79 @@ reviewsRouter.post(
   })
 );
 
+reviewsRouter.post(
+  "/:id/final-code",
+  asyncRoute(async (
+    request: AuthenticatedRequest<{ id: string }>,
+    response
+  ) => {
+    const review = await prisma.reviewResult.findFirst({
+      where: {
+        id: request.params.id,
+        submission: {
+          userId: request.auth.userId
+        }
+      },
+      include: {
+        submission: true,
+        reviewIssues: {
+          where: {
+            accepted: true
+          },
+          orderBy: {
+            lineStart: "asc"
+          }
+        }
+      }
+    });
+
+    if (!review) {
+      response.status(404).json({ error: "Review not found." });
+      return;
+    }
+
+    if (review.reviewIssues.length === 0) {
+      response.status(400).json({ error: "Accept at least one issue before generating final code." });
+      return;
+    }
+
+    try {
+      const acceptedIssues = review.reviewIssues.map((issue) => toReviewIssueSummary(issue as ReviewIssue));
+      const aiResponse = await streamChatWithFailover({
+        language: review.submission.language,
+        sourceCode: review.submission.sourceCode,
+        reviewId: review.id,
+        issue: null,
+        message: [
+          "Apply only the accepted fixes below to the source code.",
+          "Return the complete corrected source file only.",
+          "Do not include Markdown fences, explanations, comments about the changes, or placeholder text.",
+          "Preserve existing code that is unrelated to the accepted fixes.",
+          "If an accepted suggestedFix is a fragment, infer the smallest syntactically valid full-code edit grounded in the source.",
+          "",
+          "Accepted fixes:",
+          JSON.stringify(acceptedIssues, null, 2)
+        ].join("\n")
+      });
+
+      const payload: FinalCodeResponse = {
+        code: stripMarkdownFence(aiResponse.text),
+        providerUsed: aiResponse.providerUsed,
+        modelUsed: aiResponse.modelUsed
+      };
+
+      response.json(payload);
+    } catch (error) {
+      console.log("[reviews] Final code generation failed.", {
+        reviewId: request.params.id,
+        userId: request.auth.userId,
+        error
+      });
+      throw error;
+    }
+  })
+);
+
 reviewsRouter.patch(
   "/:id/issues/:issueId",
   asyncRoute(async (
@@ -261,3 +340,11 @@ reviewsRouter.patch(
     response.json({ updated: true });
   })
 );
+
+function stripMarkdownFence(value: string): string {
+  return value
+    .trim()
+    .replace(/^```[a-zA-Z0-9_-]*\s*/u, "")
+    .replace(/```$/u, "")
+    .trim();
+}

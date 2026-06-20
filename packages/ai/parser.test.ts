@@ -56,6 +56,17 @@ describe("validateReviewIssue", () => {
     });
   });
 
+  it("removes prose prefixes from suggested fixes", () => {
+    expect(
+      validateReviewIssue({
+        ...VALID_ISSUE,
+        suggestedFix: "Consider replacing the duplicated code with a loop, for example: for _ in range(8): print('hello')"
+      })
+    ).toMatchObject({
+      suggestedFix: "for _ in range(8): print('hello')"
+    });
+  });
+
   it("rejects inverted line ranges", () => {
     expect(() => validateReviewIssue({ ...VALID_ISSUE, lineStart: 8, lineEnd: 2 })).toThrow(
       "lineEnd must be greater than or equal to lineStart"

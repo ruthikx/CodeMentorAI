@@ -3,15 +3,19 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { apiFetch } from "../lib/api";
-import type { ReviewDetail, ReviewIssue } from "../lib/review";
+import { applyAcceptedFixes, type AppliedFixResult, type ReviewDetail, type ReviewIssue } from "../lib/review";
 import { streamReviewIssues } from "../lib/review-stream";
 import { IssueCard } from "./issue-card";
+
+type IssueDecision = "accepted" | "rejected";
 
 export function ReviewStreamClient({ reviewId }: { reviewId: string }) {
   const [streamedIssues, setStreamedIssues] = useState<ReviewIssue[]>([]);
   const [status, setStatus] = useState<ReviewDetail["status"]>("processing");
   const [streamError, setStreamError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [decisions, setDecisions] = useState<Record<string, IssueDecision>>({});
+  const [generatedCode, setGeneratedCode] = useState<AppliedFixResult | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
   const issueRefs = useRef<Array<HTMLDivElement | null>>([]);
 
@@ -26,6 +30,16 @@ export function ReviewStreamClient({ reviewId }: { reviewId: string }) {
     }
 
     setStreamedIssues(reviewQuery.data.issues);
+    setDecisions((current) => {
+      const next = { ...current };
+      for (const issue of reviewQuery.data.issues) {
+        if (issue.accepted) {
+          next[issue.id] = "accepted";
+        }
+      }
+
+      return next;
+    });
     setStatus(reviewQuery.data.status);
     if (reviewQuery.data.status === "complete") {
       setStreamError(null);
@@ -80,6 +94,11 @@ export function ReviewStreamClient({ reviewId }: { reviewId: string }) {
           issue.id === variables.issueId ? { ...issue, accepted: variables.accepted } : issue
         )
       );
+      setGeneratedCode(null);
+      setDecisions((current) => ({
+        ...current,
+        [variables.issueId]: variables.accepted ? "accepted" : "rejected"
+      }));
     },
     onError: (error) => {
       const message = error instanceof Error ? error.message : String(error);
@@ -95,6 +114,41 @@ export function ReviewStreamClient({ reviewId }: { reviewId: string }) {
     () => [...streamedIssues].sort((left, right) => left.lineStart - right.lineStart),
     [streamedIssues]
   );
+  const acceptedIssueCount = orderedIssues.filter((issue) => decisions[issue.id] === "accepted").length;
+  const undecidedIssueCount = orderedIssues.filter((issue) => !decisions[issue.id]).length;
+  const allIssuesDecided = orderedIssues.length > 0 && undecidedIssueCount === 0;
+  const fallbackFinalCode = useMemo(
+    () => applyAcceptedFixes(reviewQuery.data?.submission.sourceCode ?? "", orderedIssues.filter((issue) => decisions[issue.id] === "accepted")),
+    [decisions, orderedIssues, reviewQuery.data?.submission.sourceCode]
+  );
+
+  const generateFinalCode = useMutation({
+    mutationFn: () =>
+      apiFetch<{ code: string; providerUsed: string; modelUsed: string }>(`/api/reviews/${reviewId}/final-code`, {
+        method: "POST"
+      }),
+    onMutate: () => {
+      setActionError(null);
+    },
+    onSuccess: (payload) => {
+      setGeneratedCode({
+        code: payload.code,
+        appliedCount: acceptedIssueCount,
+        skippedIssues: []
+      });
+    },
+    onError: (error) => {
+      const message = error instanceof Error ? error.message : String(error);
+      console.log("[review-stream] Final code generation failed.", {
+        reviewId,
+        message
+      });
+      setActionError(`${message} Showing line-based fallback when possible.`);
+      if (fallbackFinalCode.appliedCount > 0) {
+        setGeneratedCode(fallbackFinalCode);
+      }
+    }
+  });
 
   useEffect(() => {
     if (activeIndex >= orderedIssues.length && orderedIssues.length > 0) {
@@ -200,6 +254,7 @@ export function ReviewStreamClient({ reviewId }: { reviewId: string }) {
                 language={reviewQuery.data.submission.language}
                 active={index === activeIndex}
                 isSaving={patchIssue.isPending && patchIssue.variables?.issueId === issue.id}
+                decision={decisions[issue.id]}
                 onFocus={() => setActiveIndex(index)}
                 onAccept={(accepted) => patchIssue.mutate({ issueId: issue.id, accepted })}
               />
@@ -210,8 +265,126 @@ export function ReviewStreamClient({ reviewId }: { reviewId: string }) {
         {orderedIssues.length === 0 && status === "processing" ? (
           <ReviewShell message="Waiting for the first issue to arrive..." />
         ) : null}
+
+        {orderedIssues.length > 0 ? (
+          <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 text-sm text-slate-300">
+            {allIssuesDecided
+              ? acceptedIssueCount > 0
+                ? "All issues have a decision. Generate the final corrected code from the accepted fixes."
+                : "All issues were rejected, so there is no corrected code to generate."
+              : `${undecidedIssueCount} ${undecidedIssueCount === 1 ? "issue still needs" : "issues still need"} Accept Fix or Reject before final code is generated.`}
+          </section>
+        ) : null}
+
+        {allIssuesDecided && acceptedIssueCount > 0 ? (
+          <FinalCodePanel
+            result={generatedCode}
+            filename={reviewQuery.data.submission.filename}
+            language={reviewQuery.data.submission.language}
+            isGenerating={generateFinalCode.isPending}
+            onGenerate={() => generateFinalCode.mutate()}
+          />
+        ) : null}
       </div>
     </div>
+  );
+}
+
+function FinalCodePanel(props: {
+  result: AppliedFixResult | null;
+  filename: string | null;
+  language: string;
+  isGenerating: boolean;
+  onGenerate: () => void;
+}) {
+  const [copied, setCopied] = useState(false);
+  const downloadFilename = props.filename ? `corrected-${props.filename}` : "corrected-code.txt";
+  const result = props.result;
+
+  const copyCode = async () => {
+    if (!result) {
+      return;
+    }
+
+    await navigator.clipboard.writeText(result.code);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1600);
+  };
+
+  const downloadCode = () => {
+    if (!result) {
+      return;
+    }
+
+    const blob = new Blob([result.code], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = downloadFilename;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <section className="rounded-3xl border border-signal.mint/30 bg-[#0b1220] p-5 shadow-card">
+      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+        <div>
+          <p className="text-xs uppercase tracking-[0.28em] text-signal.mint">Final Corrected Code</p>
+          <h2 className="mt-2 text-2xl font-semibold text-white">{downloadFilename}</h2>
+          <p className="mt-2 text-sm text-slate-300">
+            {result
+              ? `Generated from ${result.appliedCount} accepted ${result.appliedCount === 1 ? "fix" : "fixes"}.`
+              : "Ready to generate from accepted fixes."}
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={props.onGenerate}
+            disabled={props.isGenerating}
+            className="rounded-full border border-signal.mint/40 bg-signal.mint/10 px-4 py-2 text-sm font-medium text-signal.mint transition hover:bg-signal.mint/20 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {props.isGenerating ? "Generating..." : result ? "Regenerate" : "Generate Final Code"}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              void copyCode();
+            }}
+            disabled={!result}
+            className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-slate-100 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {copied ? "Copied" : "Copy Code"}
+          </button>
+          <button
+            type="button"
+            onClick={downloadCode}
+            disabled={!result}
+            className="rounded-full bg-paper px-4 py-2 text-sm font-medium text-ink transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Download
+          </button>
+        </div>
+      </div>
+
+      {!result ? (
+        <div className="mt-5 rounded-2xl border border-white/10 bg-black/20 p-4 text-sm leading-6 text-slate-300">
+          This step asks the AI to produce a complete corrected file from the accepted issues, so fragmentary suggested fixes do not get pasted directly into the source.
+        </div>
+      ) : null}
+
+      {result?.skippedIssues.length ? (
+        <div className="mt-4 rounded-2xl border border-signal.yellow/30 bg-signal.yellow/10 p-4 text-sm text-slate-100">
+          {result.skippedIssues.length} accepted {result.skippedIssues.length === 1 ? "fix was" : "fixes were"} skipped by the fallback line-based patcher because line ranges overlapped or no longer matched the source.
+        </div>
+      ) : null}
+
+      {result ? (
+        <pre className="mt-5 max-h-[520px] overflow-auto rounded-2xl border border-white/10 bg-black/30 p-4 text-sm leading-6 text-slate-100">
+          <code className={`language-${props.language}`}>{result.code}</code>
+        </pre>
+      ) : null}
+    </section>
   );
 }
 

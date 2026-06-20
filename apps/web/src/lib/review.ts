@@ -77,11 +77,103 @@ export function getSeverityMeta(severity: ReviewSeverity) {
   }
 }
 
-export function extractSnippet(sourceCode: string, lineStart: number, lineEnd: number): string {
+export function extractSnippet(sourceCode: string, lineStart: number, lineEnd: number, contextLines = 1): string {
   const lines = sourceCode.split("\n");
-  const start = Math.max(0, lineStart - 2);
-  const end = Math.min(lines.length, lineEnd + 1);
+  const start = Math.max(0, lineStart - 1 - contextLines);
+  const end = Math.min(lines.length, lineEnd + contextLines);
   return lines.slice(start, end).join("\n");
+}
+
+export interface AppliedFixResult {
+  code: string;
+  appliedCount: number;
+  skippedIssues: ReviewIssue[];
+}
+
+export function applyAcceptedFixes(sourceCode: string, issues: ReviewIssue[]): AppliedFixResult {
+  const acceptedIssues = issues
+    .filter((issue) => issue.accepted)
+    .sort((left, right) => {
+      if (right.lineStart !== left.lineStart) {
+        return right.lineStart - left.lineStart;
+      }
+
+      return right.lineEnd - left.lineEnd;
+    });
+
+  const lines = sourceCode.split("\n");
+  const appliedRanges: Array<{ lineStart: number; lineEnd: number }> = [];
+  const skippedIssues: ReviewIssue[] = [];
+
+  for (const issue of acceptedIssues) {
+    if (issue.lineStart < 1 || issue.lineEnd < issue.lineStart || issue.lineStart > lines.length) {
+      skippedIssues.push(issue);
+      continue;
+    }
+
+    const overlapsAppliedRange = appliedRanges.some(
+      (range) => issue.lineStart <= range.lineEnd && issue.lineEnd >= range.lineStart
+    );
+
+    if (overlapsAppliedRange) {
+      skippedIssues.push(issue);
+      continue;
+    }
+
+    const startIndex = issue.lineStart - 1;
+    const deleteCount = Math.min(issue.lineEnd, lines.length) - startIndex;
+    const replacement = normalizeSuggestedFix(issue.suggestedFix);
+    const replacementLines = replacement.length > 0 ? replacement.split("\n") : [];
+
+    lines.splice(startIndex, deleteCount, ...replacementLines);
+    appliedRanges.push({ lineStart: issue.lineStart, lineEnd: issue.lineEnd });
+  }
+
+  return {
+    code: lines.join("\n"),
+    appliedCount: acceptedIssues.length - skippedIssues.length,
+    skippedIssues
+  };
+}
+
+export function normalizeSuggestedFix(suggestedFix: string): string {
+  const trimmed = stripMarkdownFence(suggestedFix.trim());
+  const colonSeparatedCode = extractCodeAfterProsePrefix(trimmed);
+
+  if (colonSeparatedCode) {
+    return colonSeparatedCode;
+  }
+
+  return trimmed;
+}
+
+function stripMarkdownFence(value: string): string {
+  return value
+    .replace(/^```[a-zA-Z0-9_-]*\s*/u, "")
+    .replace(/```$/u, "")
+    .trim();
+}
+
+function extractCodeAfterProsePrefix(value: string): string | null {
+  const prefixMatch = value.match(/\b(?:for example|e\.g\.|try this|use this|replace with)\s*:\s*/iu);
+  if (!prefixMatch?.index) {
+    return null;
+  }
+
+  const candidate = value.slice(prefixMatch.index + prefixMatch[0].length).trim();
+  if (!looksLikeCode(candidate)) {
+    return null;
+  }
+
+  return candidate;
+}
+
+function looksLikeCode(value: string): boolean {
+  if (value.length === 0) {
+    return false;
+  }
+
+  return /[(){}[\]=;<>]/u.test(value) || /^\s*(for|if|while|def|class|const|let|var|return|print|import|from)\b/u.test(value);
 }
 
 export function trimToApproxTokens(value: string, maxTokens: number): string {

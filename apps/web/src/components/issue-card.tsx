@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { extractSnippet, type ReviewIssue } from "../lib/review";
+import { extractSnippet, normalizeSuggestedFix, type ReviewIssue } from "../lib/review";
 import { DiffEditor } from "./monaco-shell";
 import { SeverityBadge } from "./severity-badge";
 
@@ -11,10 +11,13 @@ export function IssueCard(props: {
   language: string;
   active: boolean;
   isSaving?: boolean;
+  decision?: "accepted" | "rejected";
   onAccept: (accepted: boolean) => void;
   onFocus: () => void;
 }) {
-  const accepted = props.issue.accepted;
+  const accepted = props.decision === "accepted";
+  const rejected = props.decision === "rejected";
+  const suggestedFix = normalizeSuggestedFix(props.issue.suggestedFix);
 
   return (
     <motion.article
@@ -54,11 +57,15 @@ export function IssueCard(props: {
             </button>
             <button
               type="button"
-              className="rounded-full border border-white/15 bg-white/5 px-4 py-2 text-sm font-medium text-slate-100 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+              className={`rounded-full border px-4 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                rejected
+                  ? "border-white/20 bg-white/15 text-slate-300"
+                  : "border-white/15 bg-white/5 text-slate-100 hover:bg-white/10"
+              }`}
               onClick={() => props.onAccept(false)}
-              disabled={props.isSaving || !accepted}
+              disabled={props.isSaving || rejected}
             >
-              {props.isSaving && accepted ? "Saving..." : "Reject"}
+              {props.isSaving && !rejected ? "Saving..." : rejected ? "Rejected" : "Reject"}
             </button>
           </div>
         </div>
@@ -70,8 +77,8 @@ export function IssueCard(props: {
             height="320px"
             language={props.language}
             theme="vs-dark"
-            original={extractSnippet(props.sourceCode, props.issue.lineStart, props.issue.lineEnd)}
-            modified={props.issue.suggestedFix}
+            original={extractSnippet(props.sourceCode, props.issue.lineStart, props.issue.lineEnd, 0)}
+            modified={suggestedFix}
             options={{
               readOnly: true,
               renderSideBySide: true,
