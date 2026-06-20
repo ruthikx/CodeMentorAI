@@ -70,6 +70,13 @@ export async function runReviewGeneration(params: {
       }
     });
   } catch (error) {
+    console.log("[review-runner] Review generation failed.", {
+      reviewId: params.reviewId,
+      submissionId: params.submissionId,
+      userId: params.userId,
+      error
+    });
+
     await prisma.reviewResult.update({
       where: { id: params.reviewId },
       data: {

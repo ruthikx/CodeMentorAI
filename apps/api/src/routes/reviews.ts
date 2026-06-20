@@ -231,16 +231,32 @@ reviewsRouter.patch(
     });
 
     if (!issue) {
+      console.log("[reviews] Issue decision update failed: issue not found.", {
+        reviewId: request.params.id,
+        issueId: request.params.issueId,
+        userId: request.auth.userId
+      });
       response.status(404).json({ error: "Issue not found." });
       return;
     }
 
-    await prisma.reviewIssue.update({
-      where: { id: issue.id },
-      data: {
-        accepted: Boolean(request.body.accepted)
-      }
-    });
+    try {
+      await prisma.reviewIssue.update({
+        where: { id: issue.id },
+        data: {
+          accepted: Boolean(request.body.accepted)
+        }
+      });
+    } catch (error) {
+      console.log("[reviews] Issue decision update failed.", {
+        reviewId: request.params.id,
+        issueId: request.params.issueId,
+        userId: request.auth.userId,
+        accepted: Boolean(request.body.accepted),
+        error
+      });
+      throw error;
+    }
 
     response.json({ updated: true });
   })

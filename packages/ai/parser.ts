@@ -7,6 +7,17 @@ const VALID_SEVERITIES: readonly ReviewSeverity[] = [
   "security"
 ] as const;
 
+const SEVERITY_ALIASES: Record<string, ReviewSeverity> = {
+  low: "style",
+  info: "style",
+  informational: "style",
+  warning: "best_practice",
+  medium: "logic",
+  moderate: "logic",
+  high: "security",
+  critical: "security"
+};
+
 type ParsedIssuePayload = Pick<
   ReviewIssue,
   "severity" | "category" | "lineStart" | "lineEnd" | "title" | "explanation" | "suggestedFix"
@@ -129,11 +140,11 @@ export function validateReviewIssue(input: unknown): ParsedIssuePayload {
     throw new Error("Each review issue must be a JSON object.");
   }
 
-  const severityValue = input.severity;
-  if (typeof severityValue !== "string" || !VALID_SEVERITIES.includes(severityValue as ReviewSeverity)) {
+  const severity = normalizeSeverity(input.severity);
+  if (!severity) {
+    const severityValue = input.severity;
     throw new Error(`Invalid review issue severity: ${String(severityValue)}`);
   }
-  const severity = severityValue as ReviewSeverity;
 
   const category = expectNonEmptyString(input.category, "category");
   const title = expectNonEmptyString(input.title, "title");
@@ -155,6 +166,19 @@ export function validateReviewIssue(input: unknown): ParsedIssuePayload {
     explanation,
     suggestedFix
   };
+}
+
+function normalizeSeverity(value: unknown): ReviewSeverity | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const normalized = value.trim().toLowerCase().replace(/[\s-]+/g, "_");
+  if (VALID_SEVERITIES.includes(normalized as ReviewSeverity)) {
+    return normalized as ReviewSeverity;
+  }
+
+  return SEVERITY_ALIASES[normalized] ?? null;
 }
 
 function buildReviewIssue(input: ParsedIssuePayload, reviewId?: string): ReviewIssue {

@@ -11,6 +11,7 @@ export function ReviewStreamClient({ reviewId }: { reviewId: string }) {
   const [streamedIssues, setStreamedIssues] = useState<ReviewIssue[]>([]);
   const [status, setStatus] = useState<ReviewDetail["status"]>("processing");
   const [streamError, setStreamError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
   const issueRefs = useRef<Array<HTMLDivElement | null>>([]);
 
@@ -70,12 +71,23 @@ export function ReviewStreamClient({ reviewId }: { reviewId: string }) {
         method: "PATCH",
         body: JSON.stringify({ accepted: params.accepted })
       }),
+    onMutate: () => {
+      setActionError(null);
+    },
     onSuccess: (_payload, variables) => {
       setStreamedIssues((current) =>
         current.map((issue) =>
           issue.id === variables.issueId ? { ...issue, accepted: variables.accepted } : issue
         )
       );
+    },
+    onError: (error) => {
+      const message = error instanceof Error ? error.message : String(error);
+      console.log("[review-stream] Failed to update issue decision.", {
+        reviewId,
+        message
+      });
+      setActionError(message);
     }
   });
 
@@ -167,6 +179,12 @@ export function ReviewStreamClient({ reviewId }: { reviewId: string }) {
           </section>
         ) : null}
 
+        {actionError ? (
+          <section className="rounded-3xl border border-signal.red/30 bg-signal.red/10 p-5 text-sm text-slate-100">
+            Could not update this issue: {actionError}
+          </section>
+        ) : null}
+
         <div role="listbox" aria-label="Review issues" className="grid gap-5" onKeyDown={handleNavigation}>
           {orderedIssues.map((issue, index) => (
             <div
@@ -181,6 +199,7 @@ export function ReviewStreamClient({ reviewId }: { reviewId: string }) {
                 sourceCode={reviewQuery.data.submission.sourceCode}
                 language={reviewQuery.data.submission.language}
                 active={index === activeIndex}
+                isSaving={patchIssue.isPending && patchIssue.variables?.issueId === issue.id}
                 onFocus={() => setActiveIndex(index)}
                 onAccept={(accepted) => patchIssue.mutate({ issueId: issue.id, accepted })}
               />

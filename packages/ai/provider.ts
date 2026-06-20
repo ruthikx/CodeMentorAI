@@ -8,11 +8,10 @@ import {
 } from "./prompts.js";
 
 export const GROQ_MODEL = "llama-3.3-70b-versatile";
-export const GEMINI_MODEL = "gemini-1.5-pro";
+export const GEMINI_MODEL = process.env.GEMINI_MODEL ?? "gemini-2.5-flash";
 
 const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
-const GEMINI_API_URL =
-  "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:streamGenerateContent?alt=sse";
+const GEMINI_API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models";
 
 export interface AIReviewRequest {
   language: string;
@@ -285,7 +284,7 @@ class GeminiAIProvider implements AIProvider {
     };
 
     const response = await fetchWithTimeout(
-      GEMINI_API_URL,
+      getGeminiApiUrl(this.model),
       {
         method: "POST",
         headers: {
@@ -365,7 +364,7 @@ class GeminiAIProvider implements AIProvider {
     };
 
     const response = await fetchWithTimeout(
-      GEMINI_API_URL,
+      getGeminiApiUrl(this.model),
       {
         method: "POST",
         headers: {
@@ -438,6 +437,10 @@ function finalizeIssues(
 
     return match ?? issue;
   });
+}
+
+function getGeminiApiUrl(model: string): string {
+  return `${GEMINI_API_BASE_URL}/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`;
 }
 
 async function fetchWithTimeout(

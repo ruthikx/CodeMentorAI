@@ -50,6 +50,12 @@ describe("ReviewIssueStreamParser", () => {
 });
 
 describe("validateReviewIssue", () => {
+  it("normalizes common severity aliases from model output", () => {
+    expect(validateReviewIssue({ ...VALID_ISSUE, severity: "medium" })).toMatchObject({
+      severity: "logic"
+    });
+  });
+
   it("rejects inverted line ranges", () => {
     expect(() => validateReviewIssue({ ...VALID_ISSUE, lineStart: 8, lineEnd: 2 })).toThrow(
       "lineEnd must be greater than or equal to lineStart"

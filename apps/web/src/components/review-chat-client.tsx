@@ -8,6 +8,8 @@ import type { ChatMessage, ReviewDetail } from "../lib/review";
 import { trimToApproxTokens } from "../lib/review";
 import { useReviewChatStore } from "../store/review-chat";
 
+const EMPTY_MESSAGES: ChatMessage[] = [];
+
 export function ReviewChatClient({ reviewId }: { reviewId: string }) {
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
@@ -16,7 +18,7 @@ export function ReviewChatClient({ reviewId }: { reviewId: string }) {
     queryFn: () => apiFetch<ReviewDetail>(`/api/reviews/${reviewId}`)
   });
 
-  const messages = useReviewChatStore((state) => state.messagesByReviewId[reviewId] ?? []);
+  const messages = useReviewChatStore((state) => state.messagesByReviewId[reviewId] ?? EMPTY_MESSAGES);
   const appendMessage = useReviewChatStore((state) => state.appendMessage);
   const appendAssistantDelta = useReviewChatStore((state) => state.appendAssistantDelta);
   const history = useMemo(

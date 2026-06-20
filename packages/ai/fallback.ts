@@ -68,13 +68,10 @@ export async function streamReviewWithFailover(
     return groqResponse;
   } catch (error) {
     const groqError = normalizeProviderError(error, "groq");
-    if (!shouldFailOver(groqError)) {
-      throw groqError;
-    }
-
     groqErrorCount += 1;
     logger.warn?.("Groq failed, retrying review with Gemini.", {
       provider: groqError.provider,
+      message: groqError.message,
       statusCode: groqError.statusCode,
       retryable: groqError.retryable,
       isTimeout: groqError.isTimeout,
@@ -90,6 +87,7 @@ export async function streamReviewWithFailover(
     const geminiError = normalizeProviderError(error, "gemini");
     logger.error?.("Gemini failed after Groq failover; request should be queued.", {
       provider: geminiError.provider,
+      message: geminiError.message,
       statusCode: geminiError.statusCode,
       retryable: geminiError.retryable,
       isTimeout: geminiError.isTimeout
@@ -117,13 +115,10 @@ export async function streamChatWithFailover(
     return groqResponse;
   } catch (error) {
     const groqError = normalizeProviderError(error, "groq");
-    if (!shouldFailOver(groqError)) {
-      throw groqError;
-    }
-
     groqErrorCount += 1;
     logger.warn?.("Groq failed, retrying chat with Gemini.", {
       provider: groqError.provider,
+      message: groqError.message,
       statusCode: groqError.statusCode,
       retryable: groqError.retryable,
       isTimeout: groqError.isTimeout,
@@ -139,6 +134,7 @@ export async function streamChatWithFailover(
     const geminiError = normalizeProviderError(error, "gemini");
     logger.error?.("Gemini failed after Groq failover; chat should be queued.", {
       provider: geminiError.provider,
+      message: geminiError.message,
       statusCode: geminiError.statusCode,
       retryable: geminiError.retryable,
       isTimeout: geminiError.isTimeout
@@ -151,10 +147,6 @@ export async function streamChatWithFailover(
 
 export function getGroqErrorCount(): number {
   return groqErrorCount;
-}
-
-function shouldFailOver(error: AIProviderError): boolean {
-  return error.retryable && (error.statusCode === 429 || (error.statusCode ?? 0) >= 500 || error.isTimeout);
 }
 
 function normalizeProviderError(error: unknown, provider: ReviewProvider): AIProviderError {

@@ -10,9 +10,12 @@ export function IssueCard(props: {
   sourceCode: string;
   language: string;
   active: boolean;
+  isSaving?: boolean;
   onAccept: (accepted: boolean) => void;
   onFocus: () => void;
 }) {
+  const accepted = props.issue.accepted;
+
   return (
     <motion.article
       layout
@@ -38,16 +41,24 @@ export function IssueCard(props: {
           </div>
           <div className="flex gap-2">
             <button
-              className="rounded-full border border-signal.mint/40 bg-signal.mint/10 px-4 py-2 text-sm font-medium text-signal.mint transition hover:bg-signal.mint/20"
+              type="button"
+              className={`rounded-full border px-4 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                accepted
+                  ? "border-signal.mint bg-signal.mint text-ink"
+                  : "border-signal.mint/40 bg-signal.mint/10 text-signal.mint hover:bg-signal.mint/20"
+              }`}
               onClick={() => props.onAccept(true)}
+              disabled={props.isSaving || accepted}
             >
-              Accept Fix
+              {props.isSaving && !accepted ? "Saving..." : accepted ? "Accepted" : "Accept Fix"}
             </button>
             <button
-              className="rounded-full border border-white/15 bg-white/5 px-4 py-2 text-sm font-medium text-slate-100 transition hover:bg-white/10"
+              type="button"
+              className="rounded-full border border-white/15 bg-white/5 px-4 py-2 text-sm font-medium text-slate-100 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
               onClick={() => props.onAccept(false)}
+              disabled={props.isSaving || !accepted}
             >
-              Reject
+              {props.isSaving && accepted ? "Saving..." : "Reject"}
             </button>
           </div>
         </div>

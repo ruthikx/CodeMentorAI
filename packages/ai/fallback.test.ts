@@ -96,6 +96,24 @@ describe("streamReviewWithFailover", () => {
     });
   });
 
+  it("falls back to Gemini for non-retryable Groq failures", async () => {
+    providerMocks.groqStreamReview.mockRejectedValue(
+      new AIProviderError({ provider: "groq", message: "invalid api key", statusCode: 401, retryable: false })
+    );
+    providerMocks.geminiStreamReview.mockResolvedValue({
+      providerUsed: "gemini",
+      modelUsed: "gemini-model",
+      issues: [],
+      rawText: "[]",
+      promptTokens: null,
+      completionTokens: null
+    });
+
+    await expect(streamReviewWithFailover(reviewRequest)).resolves.toMatchObject({
+      providerUsed: "gemini"
+    });
+  });
+
   it("queues the review when both providers fail", async () => {
     const queueForRetry = jest.fn();
     providerMocks.groqStreamReview.mockRejectedValue(

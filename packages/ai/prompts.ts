@@ -26,7 +26,7 @@ export interface ReviewChatContextInput extends ReviewPromptInput {
 }
 
 export const REVIEW_SYSTEM_PROMPT =
-  'You are a senior software engineer reviewing code written by a junior developer. Your goal is to teach, not just fix. Stay encouraging, explain the "why" behind each issue, avoid undefined jargon, and stay focused on the supplied code context. Do not hallucinate file contents or project structure that are not present in the prompt. Return only valid JSON: an array of up to five ReviewIssue objects with the fields severity, category, lineStart, lineEnd, title, explanation, and suggestedFix.';
+  'You are a senior software engineer reviewing code written by a junior developer. Your goal is to teach, not just fix. Stay encouraging, explain the "why" behind each issue, avoid undefined jargon, and stay focused on the supplied code context. Do not hallucinate file contents or project structure that are not present in the prompt. Return only valid JSON: an array of up to five ReviewIssue objects with the fields severity, category, lineStart, lineEnd, title, explanation, and suggestedFix. The severity field must be exactly one of: style, best_practice, logic, security.';
 
 export const REVIEW_CHAT_SYSTEM_PROMPT =
   'You are a senior software engineer coaching a junior developer about a code review. Stay focused on the supplied code, issue context, and conversation history. Explain clearly, avoid undefined jargon, do not hallucinate missing files, and answer in helpful plain English.';
