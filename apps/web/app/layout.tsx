@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { AppProviders } from "../src/providers";
+import { Navbar } from "../src/components/navbar";
 
 export const metadata: Metadata = {
   title: "CodeMentor AI",
@@ -15,7 +16,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="bg-ink text-paper antialiased">
-        <AppProviders>{children}</AppProviders>
+        <AppProviders>
+          <Navbar />
+          {children}
+        </AppProviders>
       </body>
     </html>
   );

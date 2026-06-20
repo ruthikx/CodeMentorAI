@@ -1,12 +1,17 @@
+import path from "node:path";
+import { config as loadEnv } from "dotenv";
 import jwt from "jsonwebtoken";
 import type { NextFunction, Request, Response } from "express";
 import type { AuthenticatedRequest } from "../types/express.js";
 import type { AuthenticatedUser, UserTier } from "../types/auth.js";
 
-const JWT_AUDIENCE = process.env.JWT_AUDIENCE;
-const JWT_ISSUER = process.env.JWT_ISSUER;
-const JWT_SECRET = process.env.JWT_SECRET;
-const JWT_PUBLIC_KEY = process.env.JWT_PUBLIC_KEY?.replace(/\\n/g, "\n");
+loadEnv({ path: path.join(process.cwd(), "apps/api/.env") });
+loadEnv({ path: path.join(process.cwd(), ".env") });
+
+const JWT_AUDIENCE = normalizeEnv(process.env.JWT_AUDIENCE);
+const JWT_ISSUER = normalizeEnv(process.env.JWT_ISSUER);
+const JWT_SECRET = normalizeEnv(process.env.JWT_SECRET);
+const JWT_PUBLIC_KEY = normalizeEnv(process.env.JWT_PUBLIC_KEY)?.replace(/\\n/g, "\n");
 
 export function authMiddleware(request: Request, response: Response, next: NextFunction): void {
   if (request.path.startsWith("/auth/") || request.path === "/api/github/webhook") {
@@ -23,7 +28,7 @@ export function authMiddleware(request: Request, response: Response, next: NextF
   const token = authorization.slice("Bearer ".length);
 
   try {
-    const decoded = jwt.verify(token, JWT_PUBLIC_KEY ?? JWT_SECRET ?? "", {
+    const decoded = jwt.verify(token, JWT_PUBLIC_KEY || JWT_SECRET || "", {
       audience: JWT_AUDIENCE,
       issuer: JWT_ISSUER,
       algorithms: JWT_PUBLIC_KEY ? ["RS256"] : ["HS256"]
@@ -53,4 +58,9 @@ function normalizeTier(value: unknown): UserTier {
   }
 
   return "free";
+}
+
+function normalizeEnv(value: string | undefined): string | undefined {
+  const normalized = value?.trim();
+  return normalized ? normalized : undefined;
 }

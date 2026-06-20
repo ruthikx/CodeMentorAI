@@ -3,6 +3,7 @@ import { ReviewIssueStreamParser, parseReviewIssues } from "./parser.js";
 import {
   buildIssueChatMessages,
   buildReviewChatMessages,
+  buildReviewMessages,
   type AIMessage
 } from "./prompts.js";
 
@@ -95,7 +96,7 @@ class GroqAIProvider implements AIProvider {
     request: AIReviewRequest,
     handlers: AIProviderHandlers = {}
   ): Promise<AIProviderResponse> {
-    const messages = buildReviewChatMessages(request);
+    const messages = buildReviewMessages(request);
     return this.streamStructuredResponse(messages, request, handlers);
   }
 
@@ -251,7 +252,7 @@ class GeminiAIProvider implements AIProvider {
     request: AIReviewRequest,
     handlers: AIProviderHandlers = {}
   ): Promise<AIProviderResponse> {
-    const messages = buildReviewChatMessages(request);
+    const messages = buildReviewMessages(request);
     return this.streamStructuredResponse(messages, request, handlers);
   }
 
