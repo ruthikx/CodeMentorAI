@@ -22,7 +22,7 @@ export default function HomePage() {
             <h2 className="text-xl font-medium text-white">Review History</h2>
             <p className="mt-2 text-sm leading-7 text-slate-300">Filter past submissions and jump back into older reviews from one list.</p>
           </a>
-          <a className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-card transition hover:-translate-y-1 hover:bg-white/10" href="/review/new">
+          <a className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-card transition hover:-translate-y-1 hover:bg-white/10" href="/github">
             <h2 className="text-xl font-medium text-white">GitHub + Web Editor</h2>
             <p className="mt-2 text-sm leading-7 text-slate-300">Use the in-browser editor today and connect your PR review flow next.</p>
           </a>

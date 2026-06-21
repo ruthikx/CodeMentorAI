@@ -16,6 +16,7 @@ export function ReviewStreamClient({ reviewId }: { reviewId: string }) {
   const [actionError, setActionError] = useState<string | null>(null);
   const [decisions, setDecisions] = useState<Record<string, IssueDecision>>({});
   const [generatedCode, setGeneratedCode] = useState<AppliedFixResult | null>(null);
+  const [githubActionMessage, setGitHubActionMessage] = useState<string | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
   const issueRefs = useRef<Array<HTMLDivElement | null>>([]);
 
@@ -150,6 +151,46 @@ export function ReviewStreamClient({ reviewId }: { reviewId: string }) {
     }
   });
 
+  const postGitHubComment = useMutation({
+    mutationFn: () =>
+      apiFetch<{ commented: boolean }>(`/api/reviews/${reviewId}/github/comment`, {
+        method: "POST",
+        body: JSON.stringify({
+          body: buildGitHubReviewComment({
+            filename: reviewQuery.data?.submission.filename,
+            issues: orderedIssues,
+            decisions
+          })
+        })
+      }),
+    onMutate: () => {
+      setActionError(null);
+      setGitHubActionMessage(null);
+    },
+    onSuccess: () => {
+      setGitHubActionMessage("Comment added to the pull request.");
+    },
+    onError: (error) => {
+      setActionError(error instanceof Error ? error.message : String(error));
+    }
+  });
+
+  const mergeGitHubPullRequest = useMutation({
+    mutationFn: () => apiFetch<{ merged: boolean; message: string }>(`/api/reviews/${reviewId}/github/merge`, {
+      method: "POST"
+    }),
+    onMutate: () => {
+      setActionError(null);
+      setGitHubActionMessage(null);
+    },
+    onSuccess: (payload) => {
+      setGitHubActionMessage(payload.message);
+    },
+    onError: (error) => {
+      setActionError(error instanceof Error ? error.message : String(error));
+    }
+  });
+
   useEffect(() => {
     if (activeIndex >= orderedIssues.length && orderedIssues.length > 0) {
       setActiveIndex(orderedIssues.length - 1);
@@ -239,6 +280,19 @@ export function ReviewStreamClient({ reviewId }: { reviewId: string }) {
           </section>
         ) : null}
 
+        {reviewQuery.data.submission.githubPrId ? (
+          <GitHubReviewActions
+            repoLabel={reviewQuery.data.submission.filename ?? "GitHub pull request"}
+            prNumber={reviewQuery.data.submission.githubPrId}
+            status={status}
+            isCommenting={postGitHubComment.isPending}
+            isMerging={mergeGitHubPullRequest.isPending}
+            message={githubActionMessage}
+            onComment={() => postGitHubComment.mutate()}
+            onMerge={() => mergeGitHubPullRequest.mutate()}
+          />
+        ) : null}
+
         <div role="listbox" aria-label="Review issues" className="grid gap-5" onKeyDown={handleNavigation}>
           {orderedIssues.map((issue, index) => (
             <div
@@ -288,6 +342,86 @@ export function ReviewStreamClient({ reviewId }: { reviewId: string }) {
       </div>
     </div>
   );
+}
+
+function GitHubReviewActions(props: {
+  repoLabel: string;
+  prNumber: number;
+  status: ReviewDetail["status"];
+  isCommenting: boolean;
+  isMerging: boolean;
+  message: string | null;
+  onComment: () => void;
+  onMerge: () => void;
+}) {
+  const disabled = props.status === "processing" || props.status === "pending";
+
+  return (
+    <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-card">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <p className="text-xs uppercase tracking-[0.28em] text-signal.mint">GitHub Pull Request</p>
+          <h2 className="mt-2 text-xl font-semibold text-white">{props.repoLabel}</h2>
+          <p className="mt-1 text-sm text-slate-300">PR #{props.prNumber}</p>
+        </div>
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <button
+            type="button"
+            onClick={props.onComment}
+            disabled={disabled || props.isCommenting}
+            className="rounded-full border border-signal.mint/40 bg-signal.mint/10 px-5 py-3 text-sm font-medium text-signal.mint transition hover:bg-signal.mint/20 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {props.isCommenting ? "Adding Comment..." : "Add Review Comment"}
+          </button>
+          <button
+            type="button"
+            onClick={props.onMerge}
+            disabled={disabled || props.isMerging}
+            className="rounded-full bg-paper px-5 py-3 text-sm font-medium text-ink transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {props.isMerging ? "Merging..." : "Merge Pull Request"}
+          </button>
+        </div>
+      </div>
+      {disabled ? (
+        <p className="mt-4 text-sm text-slate-400">GitHub actions unlock when the review finishes.</p>
+      ) : null}
+      {props.message ? (
+        <p className="mt-4 rounded-2xl border border-signal.mint/30 bg-signal.mint/10 px-4 py-3 text-sm text-signal.mint">
+          {props.message}
+        </p>
+      ) : null}
+    </section>
+  );
+}
+
+function buildGitHubReviewComment(params: {
+  filename: string | null | undefined;
+  issues: ReviewIssue[];
+  decisions: Record<string, IssueDecision>;
+}): string {
+  const acceptedIssues = params.issues.filter((issue) => params.decisions[issue.id] === "accepted");
+  const rejectedCount = params.issues.filter((issue) => params.decisions[issue.id] === "rejected").length;
+  const lines = [
+    "## CodeMentor AI Review",
+    "",
+    `Review target: ${params.filename ?? "GitHub pull request"}`,
+    `Total issues found: ${params.issues.length}`,
+    `Accepted fixes: ${acceptedIssues.length}`,
+    `Rejected issues: ${rejectedCount}`,
+    ""
+  ];
+
+  if (acceptedIssues.length > 0) {
+    lines.push("### Accepted fixes");
+    for (const issue of acceptedIssues) {
+      lines.push(`- Lines ${issue.lineStart}-${issue.lineEnd}: ${issue.title}`);
+    }
+  } else {
+    lines.push("No fixes were accepted from this review.");
+  }
+
+  return lines.join("\n");
 }
 
 function FinalCodePanel(props: {

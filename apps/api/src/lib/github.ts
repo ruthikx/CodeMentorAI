@@ -71,3 +71,54 @@ export async function fetchPullRequestFiles(params: {
 
   return (await response.json()) as GitHubPullRequestFile[];
 }
+
+export async function createPullRequestComment(params: {
+  accessToken: string;
+  repoFullName: string;
+  prNumber: number;
+  body: string;
+}): Promise<void> {
+  const response = await fetch(`https://api.github.com/repos/${params.repoFullName}/issues/${params.prNumber}/comments`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${params.accessToken}`,
+      Accept: "application/vnd.github+json",
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ body: params.body })
+  });
+
+  if (!response.ok) {
+    throw new Error(`GitHub PR comment request failed with status ${response.status}.`);
+  }
+}
+
+export async function mergePullRequest(params: {
+  accessToken: string;
+  repoFullName: string;
+  prNumber: number;
+}): Promise<{ merged: boolean; message: string }> {
+  const response = await fetch(`https://api.github.com/repos/${params.repoFullName}/pulls/${params.prNumber}/merge`, {
+    method: "PUT",
+    headers: {
+      Authorization: `Bearer ${params.accessToken}`,
+      Accept: "application/vnd.github+json",
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      commit_title: `Merge pull request #${params.prNumber}`,
+      merge_method: "merge"
+    })
+  });
+
+  const payload = (await response.json().catch(() => ({}))) as { merged?: boolean; message?: string };
+
+  if (!response.ok) {
+    throw new Error(payload.message ?? `GitHub PR merge request failed with status ${response.status}.`);
+  }
+
+  return {
+    merged: Boolean(payload.merged),
+    message: payload.message ?? "Pull request merged."
+  };
+}

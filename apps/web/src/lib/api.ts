@@ -2,6 +2,13 @@ import { getSession } from "next-auth/react";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 
+export class ApiError extends Error {
+  constructor(message: string, public readonly status: number) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
 export function apiUrl(path: string): string {
   return `${API_BASE_URL}${path}`;
 }
@@ -30,7 +37,7 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
       // Leave the default message intact when the response is not JSON.
     }
 
-    throw new Error(message);
+    throw new ApiError(message, response.status);
   }
 
   return (await response.json()) as T;

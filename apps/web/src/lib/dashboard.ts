@@ -53,12 +53,12 @@ export function normalizeStreak(streak: DashboardSummary["streak"]) {
   return streak;
 }
 
-export async function dashboardFetch<T>(path: string): Promise<T> {
-  const token = process.env.NEXT_PUBLIC_API_TOKEN;
+export async function dashboardFetch<T>(path: string, token?: string): Promise<T> {
+  const authToken = token ?? process.env.NEXT_PUBLIC_API_TOKEN;
   const response = await fetch(apiUrl(path), {
     headers: {
       "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {})
+      ...(authToken ? { Authorization: `Bearer ${authToken}` } : {})
     },
     cache: "no-store"
   });

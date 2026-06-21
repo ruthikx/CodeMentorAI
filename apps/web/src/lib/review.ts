@@ -23,6 +23,7 @@ export interface ReviewDetail {
     language: string;
     filename: string | null;
     sourceCode: string;
+    githubPrId: number | null;
     submittedAt: string;
   };
 }

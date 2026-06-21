@@ -2,6 +2,7 @@ import { Router } from "express";
 import { streamChatWithFailover } from "@codementor-ai/ai/fallback";
 import type { ReviewIssue } from "@codementor-ai/types";
 import { asyncRoute } from "../lib/async-route.js";
+import { createPullRequestComment, mergePullRequest } from "../lib/github.js";
 import { prisma } from "../lib/prisma.js";
 import { emitReviewEvent, subscribeToReviewEvents } from "../lib/review-events.js";
 import { runReviewGeneration, toReviewIssueSummary } from "../lib/review-runner.js";
@@ -28,6 +29,10 @@ interface FinalCodeResponse {
   code: string;
   providerUsed: string;
   modelUsed: string;
+}
+
+interface GitHubCommentBody {
+  body: string;
 }
 
 export const reviewsRouter = Router();
@@ -108,6 +113,7 @@ reviewsRouter.get("/:id", asyncRoute(async (request: AuthenticatedRequest<{ id: 
       language: review.submission.language,
       filename: review.submission.filename,
       sourceCode: review.submission.sourceCode,
+      githubPrId: review.submission.githubPrId ? Number(review.submission.githubPrId) : null,
       submittedAt: review.submission.submittedAt
     }
   });
@@ -291,6 +297,70 @@ reviewsRouter.post(
   })
 );
 
+reviewsRouter.post(
+  "/:id/github/comment",
+  asyncRoute(async (
+    request: AuthenticatedRequest<{ id: string }, unknown, GitHubCommentBody>,
+    response
+  ) => {
+    const review = await findGitHubReview(request.params.id, request.auth.userId);
+
+    if (!review) {
+      response.status(404).json({ error: "GitHub review not found." });
+      return;
+    }
+
+    const accessToken = request.auth.githubAccessToken ?? process.env.GITHUB_ACCESS_TOKEN;
+    if (!accessToken) {
+      response.status(400).json({ error: "Missing GitHub access token." });
+      return;
+    }
+
+    if (typeof request.body.body !== "string" || request.body.body.trim().length === 0) {
+      response.status(400).json({ error: "Comment body is required." });
+      return;
+    }
+
+    await createPullRequestComment({
+      accessToken,
+      repoFullName: review.repoFullName,
+      prNumber: review.prNumber,
+      body: request.body.body.trim()
+    });
+
+    response.json({ commented: true });
+  })
+);
+
+reviewsRouter.post(
+  "/:id/github/merge",
+  asyncRoute(async (
+    request: AuthenticatedRequest<{ id: string }>,
+    response
+  ) => {
+    const review = await findGitHubReview(request.params.id, request.auth.userId);
+
+    if (!review) {
+      response.status(404).json({ error: "GitHub review not found." });
+      return;
+    }
+
+    const accessToken = request.auth.githubAccessToken ?? process.env.GITHUB_ACCESS_TOKEN;
+    if (!accessToken) {
+      response.status(400).json({ error: "Missing GitHub access token." });
+      return;
+    }
+
+    const result = await mergePullRequest({
+      accessToken,
+      repoFullName: review.repoFullName,
+      prNumber: review.prNumber
+    });
+
+    response.json(result);
+  })
+);
+
 reviewsRouter.patch(
   "/:id/issues/:issueId",
   asyncRoute(async (
@@ -347,4 +417,30 @@ function stripMarkdownFence(value: string): string {
     .replace(/^```[a-zA-Z0-9_-]*\s*/u, "")
     .replace(/```$/u, "")
     .trim();
+}
+
+async function findGitHubReview(reviewId: string, userId: string): Promise<{ repoFullName: string; prNumber: number } | null> {
+  const review = await prisma.reviewResult.findFirst({
+    where: {
+      id: reviewId,
+      submission: {
+        userId,
+        githubPrId: {
+          not: null
+        }
+      }
+    },
+    include: {
+      submission: true
+    }
+  });
+
+  if (!review?.submission.githubPrId || !review.submission.filename) {
+    return null;
+  }
+
+  return {
+    repoFullName: review.submission.filename.replace(/#\d+$/u, ""),
+    prNumber: Number(review.submission.githubPrId)
+  };
 }

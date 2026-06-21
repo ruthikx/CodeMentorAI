@@ -8,6 +8,16 @@ import type { AuthenticatedRequest } from "../types/express.js";
 
 export const githubRouter = Router();
 
+function isGitHubUnauthorizedError(error: unknown): boolean {
+  return error instanceof Error && error.message.includes("status 401");
+}
+
+function sendGitHubUnauthorized(response: { status: (code: number) => { json: (body: { error: string }) => void } }) {
+  response.status(401).json({
+    error: "GitHub authorization failed. Sign in with GitHub again or update GITHUB_ACCESS_TOKEN."
+  });
+}
+
 githubRouter.post("/webhook", asyncRoute(async (request, response) => {
   const rawBody = (request as AuthenticatedRequest).rawBody ?? Buffer.from("");
   const signature = request.header("x-hub-signature-256");
@@ -27,7 +37,19 @@ githubRouter.get("/repos", asyncRoute(async (request: AuthenticatedRequest, resp
     return;
   }
 
-  const repos = await fetchGitHubRepos(accessToken);
+  const repos = await fetchGitHubRepos(accessToken).catch((error: unknown) => {
+    if (isGitHubUnauthorizedError(error)) {
+      sendGitHubUnauthorized(response);
+      return null;
+    }
+
+    throw error;
+  });
+
+  if (!repos) {
+    return;
+  }
+
   response.json({ repos });
 }));
 
@@ -45,7 +67,19 @@ githubRouter.post(
     }
 
     const repoId = Number.parseInt(request.params.repoId, 10);
-    const repos = await fetchGitHubRepos(accessToken);
+    const repos = await fetchGitHubRepos(accessToken).catch((error: unknown) => {
+      if (isGitHubUnauthorizedError(error)) {
+        sendGitHubUnauthorized(response);
+        return null;
+      }
+
+      throw error;
+    });
+
+    if (!repos) {
+      return;
+    }
+
     const repo = repos.find((entry) => entry.id === repoId);
 
     if (!repo) {

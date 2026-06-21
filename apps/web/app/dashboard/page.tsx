@@ -1,5 +1,7 @@
+import { getServerSession } from "next-auth";
 import { GrowthLineChart, SeverityPieChart } from "../../src/components/dashboard-charts";
 import { TierGate } from "../../src/components/tier-gate";
+import { authOptions } from "../../src/lib/auth";
 import { getMockDashboardData } from "../../src/lib/dashboard-mock";
 import {
   dashboardFetch,
@@ -36,6 +38,8 @@ export default async function DashboardPage({
   let mockTrends: DashboardTrends | null = null;
   let mockBadges: DashboardBadges | null = null;
   const useMockData = searchParams?.mock === "1" || searchParams?.mock === "true";
+  const session = useMockData ? null : await getServerSession(authOptions);
+  const apiToken = session?.apiToken;
 
   if (useMockData) {
     const mockData = getMockDashboardData(normalizeTierParam(searchParams?.tier));
@@ -44,12 +48,12 @@ export default async function DashboardPage({
     mockBadges = mockData.badges;
   } else {
     try {
-      summary = await dashboardFetch<DashboardSummary>("/api/dashboard/summary");
+      summary = await dashboardFetch<DashboardSummary>("/api/dashboard/summary", apiToken);
     } catch (error) {
       return (
         <DashboardShell>
           <Panel>
-            <p className="text-sm uppercase tracking-[0.32em] text-signal.red">Dashboard unavailable</p>
+            <p className="text-sm uppercase tracking-[0.32em] text-signal-red">Dashboard unavailable</p>
             <h1 className="mt-3 text-3xl font-semibold text-white">Could not load learning analytics.</h1>
             <p className="mt-3 text-sm leading-7 text-slate-300">
               {error instanceof Error ? error.message : "The dashboard API did not respond."}
@@ -68,8 +72,8 @@ export default async function DashboardPage({
     ? useMockData
       ? [mockTrends, mockBadges]
       : await Promise.all([
-          dashboardFetch<DashboardTrends>("/api/dashboard/trends?days=30"),
-          dashboardFetch<DashboardBadges>("/api/dashboard/badges")
+          dashboardFetch<DashboardTrends>("/api/dashboard/trends?days=30", apiToken),
+          dashboardFetch<DashboardBadges>("/api/dashboard/badges", apiToken)
         ])
     : [null, null];
 
@@ -81,7 +85,7 @@ export default async function DashboardPage({
     <DashboardShell>
       <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div className="space-y-3">
-          <p className="text-sm uppercase tracking-[0.32em] text-signal.mint">Learning Dashboard</p>
+          <p className="text-sm uppercase tracking-[0.32em] text-signal-mint">Learning Dashboard</p>
           <h1 className="text-4xl font-semibold text-white">Track mistakes, streaks, and review momentum.</h1>
           <p className="max-w-3xl text-sm leading-7 text-slate-300">
             Analytics are modular so category breakdowns stay available on Free while trend, heatmap, streak, and badge insights unlock on Pro and Team.
@@ -165,7 +169,7 @@ function Panel({ children }: { children: React.ReactNode }) {
 function PanelHeading({ eyebrow, title }: { eyebrow: string; title: string }) {
   return (
     <div className="mb-5 space-y-2">
-      <p className="text-xs uppercase tracking-[0.24em] text-signal.mint">{eyebrow}</p>
+      <p className="text-xs uppercase tracking-[0.24em] text-signal-mint">{eyebrow}</p>
       <h2 className="text-2xl font-semibold text-white">{title}</h2>
     </div>
   );
@@ -198,7 +202,7 @@ function CategoryHeatmap({ categories }: { categories: Array<{ category: string;
           </div>
           <div className="h-3 overflow-hidden rounded-full bg-white/10">
             <div
-              className="h-full rounded-full bg-signal.mint"
+              className="h-full rounded-full bg-signal-mint"
               style={{ width: `${Math.max(8, (category.count / maxCount) * 100)}%` }}
             />
           </div>
@@ -230,14 +234,14 @@ function BadgeGrid({ badges }: { badges: DashboardBadges }) {
               </div>
               <span
                 className={`rounded-full px-3 py-1 text-xs font-semibold uppercase ${
-                  isEarned ? "bg-signal.mint/15 text-signal.mint" : "bg-white/10 text-slate-300"
+                  isEarned ? "bg-signal-mint/15 text-signal-mint" : "bg-white/10 text-slate-300"
                 }`}
               >
                 {isEarned ? "Earned" : `${percent}%`}
               </span>
             </div>
             <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/10">
-              <div className="h-full rounded-full bg-signal.mint" style={{ width: `${percent}%` }} />
+              <div className="h-full rounded-full bg-signal-mint" style={{ width: `${percent}%` }} />
             </div>
             <p className="mt-2 text-xs text-slate-400">
               {badge.current}/{badge.target}
