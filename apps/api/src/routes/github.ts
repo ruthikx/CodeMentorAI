@@ -4,7 +4,7 @@ import { asyncRoute } from "../lib/async-route.js";
 import { githubReviewQueue } from "../lib/github-queue.js";
 import { fetchGitHubRepos, verifyGitHubSignature } from "../lib/github.js";
 import { prisma } from "../lib/prisma.js";
-import { preparePublicRepoReview, RepoReviewError } from "../lib/repo-review.js";
+import { attachRepoReviewFixArtifacts, preparePublicRepoReview, RepoReviewError } from "../lib/repo-review.js";
 import { reviewRateLimitMiddleware } from "../middleware/rate-limit.js";
 import type { AuthenticatedRequest } from "../types/express.js";
 
@@ -95,7 +95,7 @@ githubRouter.post(
         timeoutMs: getRepoReviewAiTimeoutMs()
       });
 
-      response.json(aiResponse.report);
+      response.json(attachRepoReviewFixArtifacts(aiResponse.report, preparedRepo.sourceFiles));
     } catch (error) {
       if (error instanceof RepoReviewError) {
         response.status(error.statusCode).json({ error: error.message });

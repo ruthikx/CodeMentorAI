@@ -1,3 +1,5 @@
+import type { RepoReviewCorrectedFile, RepoReviewFinding, RepoReviewReport } from "@codementor-ai/types";
+
 export interface ParsedGitHubRepoUrl {
   owner: string;
   repo: string;
@@ -35,6 +37,7 @@ export interface PreparedRepoReview {
   languages: string[];
   filesScanned: number;
   sourceContext: string;
+  sourceFiles: RepoReviewSourceFile[];
 }
 
 interface GitHubRepoResponse {
@@ -235,6 +238,258 @@ export class RepoReviewError extends Error {
   }
 }
 
+export function attachRepoReviewFixArtifacts(
+  report: RepoReviewReport,
+  sourceFiles: RepoReviewSourceFile[]
+): RepoReviewReport {
+  const sourceByPath = new Map(sourceFiles.map((file) => [file.path, file]));
+  const aggregateFixes = new Map<string, ValidRepoReviewReplacement[]>();
+  const correctedByPath = new Map<string, RepoReviewCorrectedFile>();
+  const findings = report.findings.map((finding) => {
+    const enriched = attachFindingFixArtifact(finding, sourceByPath);
+
+    if (enriched.fix?.correctedFile) {
+      const fixes = aggregateFixes.get(enriched.file) ?? [];
+      fixes.push({
+        lineStart: enriched.fix.lineStart,
+        lineEnd: enriched.fix.lineEnd,
+        replacement: enriched.fix.replacement
+      });
+      aggregateFixes.set(enriched.file, fixes);
+    }
+
+    return enriched;
+  });
+
+  const aggregatePatches: string[] = [];
+  for (const [filePath, fixes] of [...aggregateFixes.entries()].sort(([left], [right]) => left.localeCompare(right))) {
+    const sourceFile = sourceByPath.get(filePath);
+    if (!sourceFile) {
+      continue;
+    }
+
+    const applicableFixes = selectNonOverlappingFixes(fixes, countLines(sourceFile.content));
+    if (applicableFixes.length === 0) {
+      continue;
+    }
+
+    const correctedContent = applyLineReplacements(sourceFile.content, applicableFixes);
+    correctedByPath.set(filePath, {
+      file: filePath,
+      content: correctedContent
+    });
+    aggregatePatches.push(buildUnifiedPatch(filePath, sourceFile.content, applicableFixes));
+  }
+
+  return {
+    ...report,
+    findings,
+    fixes: {
+      patch: aggregatePatches.length > 0 ? aggregatePatches.join("\n") : null,
+      correctedFiles: [...correctedByPath.values()].sort((left, right) => left.file.localeCompare(right.file))
+    }
+  };
+}
+
+interface ValidRepoReviewReplacement {
+  lineStart: number;
+  lineEnd: number;
+  replacement: string;
+}
+
+function attachFindingFixArtifact(
+  finding: RepoReviewFinding,
+  sourceByPath: Map<string, RepoReviewSourceFile>
+): RepoReviewFinding {
+  if (!finding.fix) {
+    return finding;
+  }
+
+  const sourceFile = sourceByPath.get(finding.file);
+  if (!sourceFile) {
+    return { ...finding, fix: null };
+  }
+
+  const replacement = normalizeReplacementCode(finding.fix.replacement);
+  const replacementFix = {
+    lineStart: finding.fix.lineStart,
+    lineEnd: finding.fix.lineEnd,
+    replacement
+  };
+  if (!isApplicableReplacement(replacementFix, countLines(sourceFile.content))) {
+    return { ...finding, fix: null };
+  }
+
+  const correctedContent = applyLineReplacements(sourceFile.content, [replacementFix]);
+  const patch = buildUnifiedPatch(finding.file, sourceFile.content, [replacementFix]);
+
+  return {
+    ...finding,
+    fix: {
+      ...finding.fix,
+      replacement,
+      patch,
+      correctedFile: {
+        file: finding.file,
+        content: correctedContent
+      }
+    }
+  };
+}
+
+function selectNonOverlappingFixes(
+  fixes: ValidRepoReviewReplacement[],
+  lineCount: number
+): ValidRepoReviewReplacement[] {
+  const selected: ValidRepoReviewReplacement[] = [];
+  let lastLineEnd = 0;
+
+  for (const fix of fixes.sort((left, right) => left.lineStart - right.lineStart || left.lineEnd - right.lineEnd)) {
+    if (!isApplicableReplacement(fix, lineCount) || fix.lineStart <= lastLineEnd) {
+      continue;
+    }
+
+    selected.push(fix);
+    lastLineEnd = fix.lineEnd;
+  }
+
+  return selected;
+}
+
+function isApplicableReplacement(fix: ValidRepoReviewReplacement, lineCount: number): boolean {
+  return fix.lineStart >= 1 && fix.lineEnd >= fix.lineStart && fix.lineEnd <= lineCount;
+}
+
+function applyLineReplacements(
+  content: string,
+  fixes: ValidRepoReviewReplacement[]
+): string {
+  const eol = detectLineEnding(content);
+  const lines = normalizeLineEndings(content).split("\n");
+
+  for (const fix of [...fixes].sort((left, right) => right.lineStart - left.lineStart || right.lineEnd - left.lineEnd)) {
+    const replacementLines = fix.replacement.length > 0 ? fix.replacement.split("\n") : [];
+    lines.splice(fix.lineStart - 1, fix.lineEnd - fix.lineStart + 1, ...replacementLines);
+  }
+
+  return lines.join(eol);
+}
+
+function buildUnifiedPatch(
+  filePath: string,
+  originalContent: string,
+  fixes: ValidRepoReviewReplacement[]
+): string {
+  const originalLines = normalizeLineEndings(originalContent).split("\n");
+  const applicableFixes = selectNonOverlappingFixes(fixes, originalLines.length);
+  const hunks = buildPatchHunks(originalLines, applicableFixes);
+
+  return [
+    `diff --git a/${filePath} b/${filePath}`,
+    `--- a/${filePath}`,
+    `+++ b/${filePath}`,
+    ...hunks
+  ].join("\n");
+}
+
+function buildPatchHunks(
+  originalLines: string[],
+  fixes: ValidRepoReviewReplacement[]
+): string[] {
+  const contextLines = 3;
+  const windows = fixes.map((fix) => ({
+    start: Math.max(0, fix.lineStart - 1 - contextLines),
+    end: Math.min(originalLines.length, fix.lineEnd + contextLines),
+    fixes: [fix]
+  }));
+  const mergedWindows: Array<{ start: number; end: number; fixes: ValidRepoReviewReplacement[] }> = [];
+
+  for (const window of windows) {
+    const previous = mergedWindows[mergedWindows.length - 1];
+    if (previous && window.start <= previous.end) {
+      previous.end = Math.max(previous.end, window.end);
+      previous.fixes.push(...window.fixes);
+      continue;
+    }
+
+    mergedWindows.push(window);
+  }
+
+  let cumulativeDelta = 0;
+  const hunks: string[] = [];
+  for (const window of mergedWindows) {
+    const deltaBeforeWindow = cumulativeDelta;
+    const oldStart = window.start + 1;
+    const oldCount = window.end - window.start;
+    const newStart = window.start + 1 + deltaBeforeWindow;
+    let newCount = oldCount;
+    const body: string[] = [];
+    let cursor = window.start;
+
+    for (const fix of window.fixes) {
+      const fixStartIndex = fix.lineStart - 1;
+      const fixEndIndex = fix.lineEnd;
+      const replacementLines = fix.replacement.length > 0 ? fix.replacement.split("\n") : [];
+
+      for (const line of originalLines.slice(cursor, fixStartIndex)) {
+        body.push(` ${line}`);
+      }
+
+      for (const line of originalLines.slice(fixStartIndex, fixEndIndex)) {
+        body.push(`-${line}`);
+      }
+
+      for (const line of replacementLines) {
+        body.push(`+${line}`);
+      }
+
+      const delta = replacementLines.length - (fixEndIndex - fixStartIndex);
+      newCount += delta;
+      cumulativeDelta += delta;
+      cursor = fixEndIndex;
+    }
+
+    for (const line of originalLines.slice(cursor, window.end)) {
+      body.push(` ${line}`);
+    }
+
+    hunks.push(`@@ -${oldStart},${oldCount} +${newStart},${newCount} @@`, ...body);
+  }
+
+  return hunks;
+}
+
+function countLines(content: string): number {
+  return normalizeLineEndings(content).split("\n").length;
+}
+
+function normalizeReplacementCode(value: string): string {
+  return stripCodeFencePreservingIndent(value.replace(/\r\n/g, "\n"));
+}
+
+function stripCodeFencePreservingIndent(value: string): string {
+  const withoutBoundaryBlankLines = trimBoundaryBlankLines(value);
+  const fenceMatch = withoutBoundaryBlankLines.match(/^```[a-zA-Z0-9_-]*[ \t]*\n?([\s\S]*?)\n?```$/u);
+
+  if (fenceMatch) {
+    return trimBoundaryBlankLines(fenceMatch[1]);
+  }
+
+  return withoutBoundaryBlankLines;
+}
+
+function trimBoundaryBlankLines(value: string): string {
+  return value.replace(/^\n+/u, "").replace(/\n+$/u, "");
+}
+
+function normalizeLineEndings(content: string): string {
+  return content.replace(/\r\n/g, "\n");
+}
+
+function detectLineEnding(content: string): "\r\n" | "\n" {
+  return content.includes("\r\n") ? "\r\n" : "\n";
+}
+
 export async function preparePublicRepoReview(
   inputUrl: string,
   limits: RepoReviewLimits = getRepoReviewLimits()
@@ -298,7 +553,8 @@ export async function preparePublicRepoReview(
     fileTree: buildFileTreeSummary(allFiles, new Set(sourceFiles.map((file) => file.path))),
     languages,
     filesScanned: sourceFiles.length,
-    sourceContext: buildSourceContext(sourceFiles, limits.maxContextChars)
+    sourceContext: buildSourceContext(sourceFiles, limits.maxContextChars),
+    sourceFiles
   };
 }
 

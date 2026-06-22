@@ -3,7 +3,7 @@
 import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { apiFetch } from "../lib/api";
-import type { RepoReviewReport, RepoReviewSeverity } from "../lib/repo-review";
+import type { RepoReviewCorrectedFile, RepoReviewReport, RepoReviewSeverity } from "../lib/repo-review";
 
 const FOCUS_OPTIONS = ["bugs", "security", "performance", "architecture", "tests"] as const;
 
@@ -123,6 +123,9 @@ export function RepoReviewPanel() {
 }
 
 function RepoReviewReportView({ report }: { report: RepoReviewReport }) {
+  const hasAggregatePatch = Boolean(report.fixes?.patch);
+  const correctedFiles = report.fixes?.correctedFiles ?? [];
+
   return (
     <div className="space-y-5">
       <div className="space-y-3">
@@ -137,6 +140,52 @@ function RepoReviewReportView({ report }: { report: RepoReviewReport }) {
         <h3 className="text-2xl font-semibold text-white">{report.repo.name}</h3>
         <p className="text-sm leading-7 text-slate-300">{report.summary}</p>
       </div>
+
+      {hasAggregatePatch || correctedFiles.length > 0 ? (
+        <div className="rounded-lg border border-signal-mint/30 bg-signal-mint/10 p-4">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-signal-mint">Fix Downloads</p>
+              <p className="mt-2 text-sm leading-6 text-slate-200">
+                Download a patch for all non-overlapping fixes, or grab corrected file snapshots generated from the fetched source.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => downloadText(buildRepoDownloadName(report.repo.name, "repo-review.patch"), report.fixes?.patch ?? "")}
+                disabled={!hasAggregatePatch}
+                className="rounded-lg bg-paper px-3 py-2 text-sm font-medium text-ink transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Download Patch
+              </button>
+              {correctedFiles.length === 1 ? (
+                <button
+                  type="button"
+                  onClick={() => downloadCorrectedFile(correctedFiles[0], "corrected-")}
+                  className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm font-medium text-slate-100 transition hover:bg-white/10"
+                >
+                  Download File
+                </button>
+              ) : null}
+            </div>
+          </div>
+          {correctedFiles.length > 1 ? (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {correctedFiles.map((file) => (
+                <button
+                  key={file.file}
+                  type="button"
+                  onClick={() => downloadCorrectedFile(file, "corrected-")}
+                  className="rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-xs text-slate-200 transition hover:bg-white/10"
+                >
+                  {file.file}
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
       {report.stats.languages.length > 0 ? (
         <div className="flex flex-wrap gap-2">
@@ -165,8 +214,45 @@ function RepoReviewReportView({ report }: { report: RepoReviewReport }) {
               </div>
               <p className="mt-3 text-sm leading-7 text-slate-300">{finding.description}</p>
               <div className="mt-4 rounded-lg border border-white/10 bg-[#07101d] p-3">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Fix</p>
-                <p className="mt-2 text-sm leading-7 text-slate-200">{finding.recommendation}</p>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Fix</p>
+                    <p className="mt-2 text-sm leading-7 text-slate-200">{finding.recommendation}</p>
+                  </div>
+                  {finding.fix ? (
+                    <div className="flex shrink-0 flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => downloadText(buildFindingDownloadName(finding.file, index, "patch"), finding.fix?.patch ?? "")}
+                        disabled={!finding.fix.patch}
+                        className="rounded-lg bg-paper px-3 py-2 text-xs font-medium text-ink transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        Patch
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (finding.fix?.correctedFile) {
+                            downloadCorrectedFile(finding.fix.correctedFile, "corrected-");
+                          }
+                        }}
+                        disabled={!finding.fix.correctedFile}
+                        className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium text-slate-100 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        File
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
+                {finding.fix?.patch ? (
+                  <pre className="mt-3 max-h-72 overflow-auto rounded-lg border border-white/10 bg-black/30 p-3 text-xs leading-5 text-slate-200">
+                    <code>{finding.fix.patch}</code>
+                  </pre>
+                ) : (
+                  <p className="mt-3 rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-xs leading-5 text-slate-400">
+                    No safe downloadable patch was generated for this finding. The recommendation may need broader context, a dependency change, or a manual edit.
+                  </p>
+                )}
               </div>
             </article>
           ))
@@ -240,4 +326,44 @@ function toggleFocus(
 
 function buildFocus(selectedFocus: string[], customFocus: string) {
   return [...selectedFocus, customFocus.trim()].filter(Boolean).join(", ");
+}
+
+function downloadText(filename: string, content: string) {
+  if (content.length === 0) {
+    return;
+  }
+
+  const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
+function downloadCorrectedFile(file: RepoReviewCorrectedFile | undefined, prefix = "") {
+  if (!file) {
+    return;
+  }
+
+  downloadText(`${prefix}${sanitizeDownloadName(file.file)}`, file.content);
+}
+
+function buildRepoDownloadName(repoName: string, suffix: string) {
+  return `${sanitizeDownloadName(repoName)}-${suffix}`;
+}
+
+function buildFindingDownloadName(filePath: string, index: number, extension: string) {
+  return `${sanitizeDownloadName(filePath)}-fix-${index + 1}.${extension}`;
+}
+
+function sanitizeDownloadName(value: string) {
+  return value
+    .replace(/^[a-z]:/iu, "")
+    .replace(/[\\/]+/g, "-")
+    .replace(/[^a-z0-9._-]+/giu, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    || "repo-review";
 }

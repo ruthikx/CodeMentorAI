@@ -1,4 +1,4 @@
-import { ReviewIssueStreamParser, parseReviewIssues, validateReviewIssue } from "./parser";
+import { ReviewIssueStreamParser, parseRepoReviewReport, parseReviewIssues, validateReviewIssue } from "./parser";
 
 const VALID_ISSUE = {
   severity: "logic",
@@ -45,6 +45,94 @@ describe("ReviewIssueStreamParser", () => {
     expect(second[0]).toMatchObject({
       category: "Control Flow",
       reviewId: "stream-review"
+    });
+  });
+});
+
+describe("parseRepoReviewReport", () => {
+  it("parses exact replacement fix payloads without trimming indentation", () => {
+    const report = parseRepoReviewReport(JSON.stringify({
+      summary: "Review",
+      repo: {
+        url: "https://github.com/example/project",
+        name: "example/project",
+        defaultBranch: "main"
+      },
+      stats: {
+        filesScanned: 1,
+        languages: ["TypeScript"]
+      },
+      findings: [
+        {
+          severity: "medium",
+          title: "Use strict equality",
+          file: "src/index.ts",
+          line: 2,
+          description: "Loose equality can coerce values.",
+          recommendation: "Use strict equality.",
+          fix: {
+            lineStart: 2,
+            lineEnd: 2,
+            replacement: "  return value === 1;",
+            patch: null
+          }
+        }
+      ],
+      nextSteps: []
+    }), {
+      repoUrl: "https://github.com/example/project",
+      repoName: "example/project",
+      defaultBranch: "main",
+      filesScanned: 1,
+      languages: ["TypeScript"]
+    });
+
+    expect(report.findings[0]?.fix).toMatchObject({
+      lineStart: 2,
+      lineEnd: 2,
+      replacement: "  return value === 1;",
+      patch: null,
+      correctedFile: null
+    });
+  });
+
+  it("accepts common model fix aliases for repo review findings", () => {
+    const report = parseRepoReviewReport(JSON.stringify({
+      summary: "Review",
+      repo: {
+        url: "https://github.com/example/project",
+        name: "example/project",
+        defaultBranch: "main"
+      },
+      stats: {
+        filesScanned: 1,
+        languages: ["Python"]
+      },
+      findings: [
+        {
+          severity: "critical",
+          title: "Hardcoded password",
+          file: "main.py",
+          line: "3",
+          description: "The password is hardcoded.",
+          recommendation: "Read the password from an environment variable.",
+          suggestedFix: "password = os.environ[\"APP_PASSWORD\"]"
+        }
+      ],
+      nextSteps: []
+    }), {
+      repoUrl: "https://github.com/example/project",
+      repoName: "example/project",
+      defaultBranch: "main",
+      filesScanned: 1,
+      languages: ["Python"]
+    });
+
+    expect(report.findings[0]?.line).toBe(3);
+    expect(report.findings[0]?.fix).toMatchObject({
+      lineStart: 3,
+      lineEnd: 3,
+      replacement: "password = os.environ[\"APP_PASSWORD\"]"
     });
   });
 });

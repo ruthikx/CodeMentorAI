@@ -101,7 +101,15 @@ beforeEach(() => {
     fileTree: "* src/index.ts",
     languages: ["TypeScript"],
     filesScanned: 1,
-    sourceContext: "### src/index.ts\n   1 | const ok = true;"
+    sourceContext: "### src/index.ts\n   1 | const ok = true;",
+    sourceFiles: [
+      {
+        path: "src/index.ts",
+        size: 16,
+        content: "const ok = true;",
+        score: 10
+      }
+    ]
   });
   mockStreamRepoReviewWithFailover.mockResolvedValue({
     providerUsed: "groq",

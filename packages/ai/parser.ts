@@ -1,4 +1,5 @@
 import type {
+  RepoReviewFix,
   RepoReviewFinding,
   RepoReviewReport,
   RepoReviewSeverity,
@@ -273,13 +274,54 @@ function validateRepoReviewFinding(input: unknown): RepoReviewFinding {
     throw new Error(`Invalid repo review finding severity: ${String(input.severity)}`);
   }
 
+  const line = normalizeNullableLine(input.line);
+
   return {
     severity,
     title: expectNonEmptyString(input.title, "title"),
     file: expectNonEmptyString(input.file, "file"),
-    line: normalizeNullableLine(input.line),
+    line,
     description: expectNonEmptyString(input.description, "description"),
-    recommendation: expectNonEmptyString(input.recommendation, "recommendation")
+    recommendation: expectNonEmptyString(input.recommendation, "recommendation"),
+    fix: normalizeRepoReviewFix(input, line)
+  };
+}
+
+function normalizeRepoReviewFix(finding: Record<string, unknown>, fallbackLine: number | null): RepoReviewFix | null {
+  const input = isRecord(finding.fix) ? finding.fix : finding;
+  if (input === null || input === undefined || !isRecord(input)) {
+    return null;
+  }
+
+  const lineStart = normalizePositiveInteger(input.lineStart)
+    ?? normalizePositiveInteger(input.startLine)
+    ?? normalizePositiveInteger(input.line_start)
+    ?? fallbackLine;
+  const lineEnd = normalizePositiveInteger(input.lineEnd)
+    ?? normalizePositiveInteger(input.endLine)
+    ?? normalizePositiveInteger(input.line_end)
+    ?? lineStart;
+  if (!lineStart || !lineEnd || lineEnd < lineStart) {
+    return null;
+  }
+
+  const replacement = normalizeOptionalCode(input.replacement)
+    ?? normalizeOptionalCode(input.replacementCode)
+    ?? normalizeOptionalCode(input.correctedCode)
+    ?? normalizeOptionalCode(input.suggestedFix)
+    ?? normalizeOptionalCode(input.fix);
+  if (replacement === null) {
+    return null;
+  }
+
+  const patch = normalizeOptionalCode(input.patch);
+
+  return {
+    lineStart,
+    lineEnd,
+    replacement,
+    patch,
+    correctedFile: null
   };
 }
 
@@ -391,7 +433,47 @@ function normalizeNullableLine(value: unknown): number | null {
     return value;
   }
 
+  if (typeof value === "string") {
+    return normalizePositiveInteger(value);
+  }
+
   return null;
+}
+
+function normalizePositiveInteger(value: unknown): number | null {
+  if (typeof value === "number" && Number.isInteger(value) && value >= 1) {
+    return value;
+  }
+
+  if (typeof value === "string" && /^\d+$/u.test(value.trim())) {
+    const parsed = Number.parseInt(value.trim(), 10);
+    return Number.isInteger(parsed) && parsed >= 1 ? parsed : null;
+  }
+
+  return null;
+}
+
+function normalizeOptionalCode(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  return stripCodeFencePreservingIndent(value.replace(/\r\n/g, "\n"));
+}
+
+function stripCodeFencePreservingIndent(value: string): string {
+  const withoutBoundaryBlankLines = trimBoundaryBlankLines(value);
+  const fenceMatch = withoutBoundaryBlankLines.match(/^```[a-zA-Z0-9_-]*[ \t]*\n?([\s\S]*?)\n?```$/u);
+
+  if (fenceMatch) {
+    return trimBoundaryBlankLines(fenceMatch[1]);
+  }
+
+  return withoutBoundaryBlankLines;
+}
+
+function trimBoundaryBlankLines(value: string): string {
+  return value.replace(/^\n+/u, "").replace(/\n+$/u, "");
 }
 
 function coerceNonNegativeInteger(value: unknown, fallback: number): number {

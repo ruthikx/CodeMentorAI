@@ -1,5 +1,6 @@
 import {
   RepoReviewError,
+  attachRepoReviewFixArtifacts,
   buildSourceContext,
   parseGitHubRepoUrl,
   selectReviewCandidates,
@@ -82,11 +83,117 @@ describe("buildSourceContext", () => {
   });
 });
 
+describe("attachRepoReviewFixArtifacts", () => {
+  it("adds downloadable patches and corrected files for exact replacements", () => {
+    const report = attachRepoReviewFixArtifacts({
+      summary: "Review",
+      repo: {
+        url: "https://github.com/example/project",
+        name: "example/project",
+        defaultBranch: "main"
+      },
+      stats: {
+        filesScanned: 1,
+        languages: ["TypeScript"]
+      },
+      findings: [
+        {
+          severity: "medium",
+          title: "Use strict equality",
+          file: "src/index.ts",
+          line: 2,
+          description: "Loose equality can coerce values.",
+          recommendation: "Use strict equality.",
+          fix: {
+            lineStart: 2,
+            lineEnd: 2,
+            replacement: "  return value === 1;",
+            patch: null,
+            correctedFile: null
+          }
+        }
+      ],
+      nextSteps: []
+    }, [
+      {
+        path: "src/index.ts",
+        size: 55,
+        score: 10,
+        content: "export function check(value: number) {\n  return value == 1;\n}"
+      }
+    ]);
+
+    expect(report.findings[0]?.fix?.correctedFile).toEqual({
+      file: "src/index.ts",
+      content: "export function check(value: number) {\n  return value === 1;\n}"
+    });
+    expect(report.findings[0]?.fix?.patch).toContain("diff --git a/src/index.ts b/src/index.ts");
+    expect(report.findings[0]?.fix?.patch).toContain("-  return value == 1;");
+    expect(report.findings[0]?.fix?.patch).toContain("+  return value === 1;");
+    expect(report.fixes?.patch).toContain("+  return value === 1;");
+    expect(report.fixes?.correctedFiles).toHaveLength(1);
+  });
+
+  it("skips overlapping fixes in aggregate corrected files", () => {
+    const report = attachRepoReviewFixArtifacts({
+      summary: "Review",
+      repo: {
+        url: "https://github.com/example/project",
+        name: "example/project",
+        defaultBranch: "main"
+      },
+      stats: {
+        filesScanned: 1,
+        languages: ["TypeScript"]
+      },
+      findings: [
+        findingWithFix("src/index.ts", 1, 2, "const safe = true;"),
+        findingWithFix("src/index.ts", 2, 2, "const alsoSafe = true;")
+      ],
+      nextSteps: []
+    }, [
+      {
+        path: "src/index.ts",
+        size: 31,
+        score: 10,
+        content: "const unsafe = false;\nconsole.log(unsafe);"
+      }
+    ]);
+
+    expect(report.findings[0]?.fix?.correctedFile?.content).toBe("const safe = true;");
+    expect(report.findings[1]?.fix?.correctedFile?.content).toBe("const unsafe = false;\nconst alsoSafe = true;");
+    expect(report.fixes?.correctedFiles).toEqual([
+      {
+        file: "src/index.ts",
+        content: "const safe = true;"
+      }
+    ]);
+  });
+});
+
 function treeFile(path: string, size: number): GitHubTreeEntry {
   return {
     path,
     size,
     type: "blob",
     url: `https://api.github.com/repos/example/project/git/blobs/${encodeURIComponent(path)}`
+  };
+}
+
+function findingWithFix(file: string, lineStart: number, lineEnd: number, replacement: string) {
+  return {
+    severity: "medium" as const,
+    title: "Finding",
+    file,
+    line: lineStart,
+    description: "Description",
+    recommendation: "Recommendation",
+    fix: {
+      lineStart,
+      lineEnd,
+      replacement,
+      patch: null,
+      correctedFile: null
+    }
   };
 }
