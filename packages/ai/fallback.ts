@@ -4,6 +4,8 @@ import {
   type AIChatResponse,
   type AIProviderHandlers,
   type AIProviderResponse,
+  type AIRepoReviewRequest,
+  type AIRepoReviewResponse,
   type AIReviewRequest,
   createGeminiProvider,
   createGroqProvider
@@ -94,6 +96,51 @@ export async function streamReviewWithFailover(
     });
 
     await options.queueForRetry?.(hydratedRequest);
+    throw new AIServiceUnavailableError();
+  }
+}
+
+export async function streamRepoReviewWithFailover(
+  request: AIRepoReviewRequest,
+  options: FailoverOptions = {}
+): Promise<AIRepoReviewResponse> {
+  const logger = options.logger ?? console;
+  const timeoutMs = options.timeoutMs ?? DEFAULT_PROVIDER_TIMEOUT_MS;
+  const groqProvider = createGroqProvider();
+  const geminiProvider = createGeminiProvider();
+  const hydratedRequest = { ...request, timeoutMs };
+
+  try {
+    const groqResponse = await groqProvider.streamRepoReview(hydratedRequest);
+    logger.info?.("AI repo review served by Groq.", buildLogContext("groq", groqResponse.providerUsed));
+    return groqResponse;
+  } catch (error) {
+    const groqError = normalizeProviderError(error, "groq");
+    groqErrorCount += 1;
+    logger.warn?.("Groq failed, retrying repo review with Gemini.", {
+      provider: groqError.provider,
+      message: groqError.message,
+      statusCode: groqError.statusCode,
+      retryable: groqError.retryable,
+      isTimeout: groqError.isTimeout,
+      groqErrorCount
+    });
+  }
+
+  try {
+    const geminiResponse = await geminiProvider.streamRepoReview(hydratedRequest);
+    logger.info?.("AI repo review served by Gemini after Groq failover.", buildLogContext("groq", geminiResponse.providerUsed));
+    return geminiResponse;
+  } catch (error) {
+    const geminiError = normalizeProviderError(error, "gemini");
+    logger.error?.("Gemini failed after Groq failover; repo review should be retried.", {
+      provider: geminiError.provider,
+      message: geminiError.message,
+      statusCode: geminiError.statusCode,
+      retryable: geminiError.retryable,
+      isTimeout: geminiError.isTimeout
+    });
+
     throw new AIServiceUnavailableError();
   }
 }

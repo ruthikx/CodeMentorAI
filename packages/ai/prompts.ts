@@ -4,6 +4,7 @@ const DEFAULT_REVIEW_ISSUE_LIMIT = 5;
 const DEFAULT_SOURCE_TOKEN_LIMIT = 8_000;
 const CHARS_PER_TOKEN = 4;
 const FOLLOW_UP_HISTORY_TOKEN_LIMIT = 16_000;
+const DEFAULT_REPO_REVIEW_TOKEN_LIMIT = 18_000;
 
 export interface AIMessage {
   role: "system" | "user" | "assistant";
@@ -25,11 +26,26 @@ export interface ReviewChatContextInput extends ReviewPromptInput {
   message?: string;
 }
 
+export interface RepoReviewPromptInput {
+  repoUrl: string;
+  repoName: string;
+  defaultBranch: string;
+  focus?: string;
+  fileTree: string;
+  languages: string[];
+  filesScanned: number;
+  sourceContext: string;
+  maxFindings?: number;
+}
+
 export const REVIEW_SYSTEM_PROMPT =
   'You are a senior software engineer reviewing code written by a junior developer. Your goal is to teach, not just fix. Stay encouraging, explain the "why" behind each issue, avoid undefined jargon, and stay focused on the supplied code context. Do not hallucinate file contents or project structure that are not present in the prompt. Return only valid JSON: an array of up to five ReviewIssue objects with the fields severity, category, lineStart, lineEnd, title, explanation, and suggestedFix. The severity field must be exactly one of: style, best_practice, logic, security. The suggestedFix field must contain replacement code only, with no prose, labels, prefixes, Markdown fences, or phrases like "for example". suggestedFix must be a complete syntactically valid replacement for exactly the lines from lineStart through lineEnd, preserving indentation and any surrounding function/class structure needed inside that range.';
 
 export const REVIEW_CHAT_SYSTEM_PROMPT =
   'You are a senior software engineer coaching a junior developer about a code review. Stay focused on the supplied code, issue context, and conversation history. Explain clearly, avoid undefined jargon, do not hallucinate missing files, and answer in helpful plain English.';
+
+export const REPO_REVIEW_SYSTEM_PROMPT =
+  "You are a senior software engineer performing a repository code review. Stay grounded only in the file tree and source excerpts provided. Do not claim to have run, built, installed, tested, or executed the repository. Return only valid JSON matching the requested schema. Findings must be specific, actionable, and include an exact file path plus a line number when the evidence appears in a supplied numbered excerpt. Avoid vague feedback.";
 
 export function buildReviewMessages(input: ReviewPromptInput): AIMessage[] {
   const maxIssues = input.maxIssues ?? DEFAULT_REVIEW_ISSUE_LIMIT;
@@ -52,6 +68,55 @@ export function buildReviewMessages(input: ReviewPromptInput): AIMessage[] {
         "```",
         truncatedSource,
         "```"
+      ].join("\n")
+    }
+  ];
+}
+
+export function buildRepoReviewMessages(input: RepoReviewPromptInput): AIMessage[] {
+  const focus = input.focus?.trim();
+  const maxFindings = input.maxFindings ?? 8;
+  const sourceContext = truncateToApproxTokens(input.sourceContext, DEFAULT_REPO_REVIEW_TOKEN_LIMIT);
+
+  return [
+    { role: "system", content: REPO_REVIEW_SYSTEM_PROMPT },
+    {
+      role: "user",
+      content: [
+        "Review this public GitHub repository from static source excerpts only.",
+        "",
+        "Return exactly one JSON object with this schema:",
+        "{",
+        '  "summary": "string",',
+        '  "repo": { "url": "string", "name": "string", "defaultBranch": "string" },',
+        '  "stats": { "filesScanned": number, "languages": ["string"] },',
+        '  "findings": [',
+        '    { "severity": "critical | high | medium | low", "title": "string", "file": "string", "line": number | null, "description": "string", "recommendation": "string" }',
+        "  ],",
+        '  "nextSteps": ["string"]',
+        "}",
+        "",
+        "Review rules:",
+        `- Include up to ${maxFindings} findings, ordered by severity and impact.`,
+        "- Use severity exactly as critical, high, medium, or low.",
+        "- Cover bugs, security risks, maintainability, missing tests, performance, and architecture concerns when evidence exists.",
+        "- Every finding must explain why it matters and suggest a concrete fix.",
+        "- Use null for line only when no exact supplied line supports the finding.",
+        "- Do not include Markdown fences or text outside the JSON object.",
+        focus ? `- User review focus: ${focus}` : "- User review focus: general repo health.",
+        "",
+        "Repository metadata:",
+        `URL: ${input.repoUrl}`,
+        `Name: ${input.repoName}`,
+        `Default branch: ${input.defaultBranch}`,
+        `Files scanned: ${input.filesScanned}`,
+        `Detected languages/frameworks: ${input.languages.join(", ") || "unknown"}`,
+        "",
+        "File tree summary:",
+        input.fileTree,
+        "",
+        "Numbered source excerpts:",
+        sourceContext
       ].join("\n")
     }
   ];

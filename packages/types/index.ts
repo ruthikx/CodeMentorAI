@@ -6,6 +6,8 @@ export type ReviewProvider = "groq" | "gemini";
 
 export type ReviewSeverity = "style" | "best_practice" | "logic" | "security";
 
+export type RepoReviewSeverity = "critical" | "high" | "medium" | "low";
+
 export interface User {
   id: string;
   email: string;
@@ -50,6 +52,30 @@ export interface ReviewIssue {
   explanation: string;
   suggestedFix: string;
   accepted: boolean;
+}
+
+export interface RepoReviewFinding {
+  severity: RepoReviewSeverity;
+  title: string;
+  file: string;
+  line: number | null;
+  description: string;
+  recommendation: string;
+}
+
+export interface RepoReviewReport {
+  summary: string;
+  repo: {
+    url: string;
+    name: string;
+    defaultBranch: string;
+  };
+  stats: {
+    filesScanned: number;
+    languages: string[];
+  };
+  findings: RepoReviewFinding[];
+  nextSteps: string[];
 }
 
 export interface LearningMetrics {

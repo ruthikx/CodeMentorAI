@@ -13,10 +13,14 @@ export default function HomePage() {
             CodeMentor AI pairs a Monaco editor, streaming issue cards, and grounded follow-up chat so developers learn while they ship.
           </p>
         </div>
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-4">
           <a className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-card transition hover:-translate-y-1 hover:bg-white/10" href="/review/new">
             <h2 className="text-xl font-medium text-white">Start A Review</h2>
             <p className="mt-2 text-sm leading-7 text-slate-300">Paste code, detect the language, and stream your first issue in seconds.</p>
+          </a>
+          <a className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-card transition hover:-translate-y-1 hover:bg-white/10" href="/repo-review">
+            <h2 className="text-xl font-medium text-white">Review GitHub Repo</h2>
+            <p className="mt-2 text-sm leading-7 text-slate-300">Submit a public repository URL and receive a structured code review report.</p>
           </a>
           <a className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-card transition hover:-translate-y-1 hover:bg-white/10" href="/history">
             <h2 className="text-xl font-medium text-white">Review History</h2>

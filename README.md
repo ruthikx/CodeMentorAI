@@ -43,6 +43,17 @@ codementor-ai/
 
 3. **Configure environment variables** (already configured in `apps/api/.env` and `apps/web/.env` for local development)
 
+   Repository review uses the existing AI provider variables (`GROQ_API_KEY`, `GEMINI_API_KEY`, optional `GEMINI_MODEL`). Public GitHub repos can be fetched without auth, but setting `GITHUB_ACCESS_TOKEN` on the API service raises GitHub API rate limits.
+
+   Optional repo-review limits:
+   - `REPO_REVIEW_MAX_REPO_SIZE_KB` (default `25000`)
+   - `REPO_REVIEW_MAX_TREE_FILES` (default `2000`)
+   - `REPO_REVIEW_MAX_FILES` (default `60`)
+   - `REPO_REVIEW_MAX_FILE_SIZE_BYTES` (default `122880`)
+   - `REPO_REVIEW_MAX_DOWNLOAD_BYTES` (default `768000`)
+   - `REPO_REVIEW_MAX_CONTEXT_CHARS` (default `70000`)
+   - `REPO_REVIEW_AI_TIMEOUT_MS` (default `20000`)
+
 4. **Run database migrations**:
    ```bash
    pnpm db:migrate

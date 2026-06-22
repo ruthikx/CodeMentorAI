@@ -1,12 +1,19 @@
 import { Router } from "express";
+import { AIServiceUnavailableError, streamRepoReviewWithFailover } from "@codementor-ai/ai/fallback";
 import { asyncRoute } from "../lib/async-route.js";
 import { githubReviewQueue } from "../lib/github-queue.js";
 import { fetchGitHubRepos, verifyGitHubSignature } from "../lib/github.js";
 import { prisma } from "../lib/prisma.js";
+import { preparePublicRepoReview, RepoReviewError } from "../lib/repo-review.js";
 import { reviewRateLimitMiddleware } from "../middleware/rate-limit.js";
 import type { AuthenticatedRequest } from "../types/express.js";
 
 export const githubRouter = Router();
+
+interface PublicRepoReviewBody {
+  url: string;
+  focus?: string;
+}
 
 function isGitHubUnauthorizedError(error: unknown): boolean {
   return error instanceof Error && error.message.includes("status 401");
@@ -52,6 +59,60 @@ githubRouter.get("/repos", asyncRoute(async (request: AuthenticatedRequest, resp
 
   response.json({ repos });
 }));
+
+githubRouter.post(
+  "/repo-review",
+  reviewRateLimitMiddleware,
+  asyncRoute(async (
+    request: AuthenticatedRequest<Record<string, string>, unknown, PublicRepoReviewBody>,
+    response
+  ) => {
+    const { url, focus } = request.body;
+
+    if (typeof url !== "string" || url.trim().length === 0) {
+      response.status(400).json({ error: "GitHub repository URL is required." });
+      return;
+    }
+
+    if (focus !== undefined && typeof focus !== "string") {
+      response.status(400).json({ error: "Review focus must be a string when provided." });
+      return;
+    }
+
+    const normalizedFocus = focus?.trim();
+    if (normalizedFocus && normalizedFocus.length > 500) {
+      response.status(400).json({ error: "Review focus must be 500 characters or fewer." });
+      return;
+    }
+
+    try {
+      const preparedRepo = await preparePublicRepoReview(url);
+      const aiResponse = await streamRepoReviewWithFailover({
+        ...preparedRepo,
+        focus: normalizedFocus,
+        maxFindings: 8
+      }, {
+        timeoutMs: getRepoReviewAiTimeoutMs()
+      });
+
+      response.json(aiResponse.report);
+    } catch (error) {
+      if (error instanceof RepoReviewError) {
+        response.status(error.statusCode).json({ error: error.message });
+        return;
+      }
+
+      if (error instanceof AIServiceUnavailableError) {
+        response.status(error.statusCode).json({
+          error: "Repository review is temporarily unavailable. Try again in a few minutes."
+        });
+        return;
+      }
+
+      throw error;
+    }
+  })
+);
 
 githubRouter.post(
   "/repos/:repoId/review",
@@ -118,3 +179,8 @@ githubRouter.post(
     response.json({ reviewId: review.id });
   })
 );
+
+function getRepoReviewAiTimeoutMs(): number {
+  const parsed = Number.parseInt(process.env.REPO_REVIEW_AI_TIMEOUT_MS ?? "20000", 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : 20_000;
+}

@@ -1,7 +1,8 @@
-import type { ReviewIssue, ReviewProvider } from "@codementor-ai/types";
-import { ReviewIssueStreamParser, parseReviewIssues } from "./parser.js";
+import type { RepoReviewReport, ReviewIssue, ReviewProvider } from "@codementor-ai/types";
+import { ReviewIssueStreamParser, parseRepoReviewReport, parseReviewIssues } from "./parser.js";
 import {
   buildIssueChatMessages,
+  buildRepoReviewMessages,
   buildReviewChatMessages,
   buildReviewMessages,
   type AIMessage
@@ -28,6 +29,20 @@ export interface AIReviewRequest {
   signal?: AbortSignal;
 }
 
+export interface AIRepoReviewRequest {
+  repoUrl: string;
+  repoName: string;
+  defaultBranch: string;
+  focus?: string;
+  fileTree: string;
+  languages: string[];
+  filesScanned: number;
+  sourceContext: string;
+  maxFindings?: number;
+  timeoutMs?: number;
+  signal?: AbortSignal;
+}
+
 export interface AIProviderHandlers {
   onIssue?: (issue: ReviewIssue) => void | Promise<void>;
   onTextDelta?: (delta: string) => void | Promise<void>;
@@ -50,10 +65,20 @@ export interface AIProviderResponse {
   completionTokens: number | null;
 }
 
+export interface AIRepoReviewResponse {
+  providerUsed: ReviewProvider;
+  modelUsed: string;
+  report: RepoReviewReport;
+  rawText: string;
+  promptTokens: number | null;
+  completionTokens: number | null;
+}
+
 export interface AIProvider {
   readonly name: ReviewProvider;
   readonly model: string;
   streamReview(request: AIReviewRequest, handlers?: AIProviderHandlers): Promise<AIProviderResponse>;
+  streamRepoReview(request: AIRepoReviewRequest): Promise<AIRepoReviewResponse>;
   streamChat(request: AIReviewRequest, handlers?: AIProviderHandlers): Promise<AIChatResponse>;
 }
 
@@ -97,6 +122,11 @@ class GroqAIProvider implements AIProvider {
   ): Promise<AIProviderResponse> {
     const messages = buildReviewMessages(request);
     return this.streamStructuredResponse(messages, request, handlers);
+  }
+
+  async streamRepoReview(request: AIRepoReviewRequest): Promise<AIRepoReviewResponse> {
+    const messages = buildRepoReviewMessages(request);
+    return this.streamRepoReportResponse(messages, request);
   }
 
   async streamChat(
@@ -178,6 +208,63 @@ class GroqAIProvider implements AIProvider {
     };
   }
 
+  private async streamRepoReportResponse(
+    messages: AIMessage[],
+    request: AIRepoReviewRequest
+  ): Promise<AIRepoReviewResponse> {
+    const apiKey = getRequiredEnv("GROQ_API_KEY", this.name);
+    const body = {
+      model: this.model,
+      stream: true,
+      temperature: 0.15,
+      max_completion_tokens: 2200,
+      messages
+    };
+
+    const response = await fetchWithTimeout(GROQ_API_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`
+      },
+      body: JSON.stringify(body),
+      signal: request.signal,
+      timeoutMs: request.timeoutMs
+    }, this.name);
+
+    if (!response.ok || !response.body) {
+      throw await buildResponseError(this.name, response);
+    }
+
+    let rawText = "";
+    let promptTokens: number | null = null;
+    let completionTokens: number | null = null;
+
+    for await (const event of iterateSSE(response.body)) {
+      if (event === "[DONE]") {
+        break;
+      }
+
+      const payload = JSON.parse(event) as GroqStreamPayload;
+      const delta = payload.choices?.[0]?.delta?.content ?? "";
+      rawText += delta;
+
+      if (payload.usage) {
+        promptTokens = payload.usage.prompt_tokens ?? promptTokens;
+        completionTokens = payload.usage.completion_tokens ?? completionTokens;
+      }
+    }
+
+    return {
+      providerUsed: this.name,
+      modelUsed: this.model,
+      report: parseRepoReviewReport(rawText, buildRepoReviewDefaults(request)),
+      rawText,
+      promptTokens,
+      completionTokens
+    };
+  }
+
   private async streamTextResponse(
     messages: AIMessage[],
     request: AIReviewRequest,
@@ -253,6 +340,11 @@ class GeminiAIProvider implements AIProvider {
   ): Promise<AIProviderResponse> {
     const messages = buildReviewMessages(request);
     return this.streamStructuredResponse(messages, request, handlers);
+  }
+
+  async streamRepoReview(request: AIRepoReviewRequest): Promise<AIRepoReviewResponse> {
+    const messages = buildRepoReviewMessages(request);
+    return this.streamRepoReportResponse(messages, request);
   }
 
   async streamChat(
@@ -337,6 +429,71 @@ class GeminiAIProvider implements AIProvider {
       providerUsed: this.name,
       modelUsed: this.model,
       issues,
+      rawText,
+      promptTokens,
+      completionTokens
+    };
+  }
+
+  private async streamRepoReportResponse(
+    messages: AIMessage[],
+    request: AIRepoReviewRequest
+  ): Promise<AIRepoReviewResponse> {
+    const apiKey = getRequiredEnv("GEMINI_API_KEY", this.name);
+    const [systemMessage, ...conversation] = messages;
+    const body = {
+      systemInstruction: {
+        parts: [{ text: systemMessage?.content ?? "" }]
+      },
+      contents: conversation.map((message) => ({
+        role: message.role === "assistant" ? "model" : "user",
+        parts: [{ text: message.content }]
+      })),
+      generationConfig: {
+        temperature: 0.15
+      }
+    };
+
+    const response = await fetchWithTimeout(
+      getGeminiApiUrl(this.model),
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": apiKey
+        },
+        body: JSON.stringify(body),
+        signal: request.signal,
+        timeoutMs: request.timeoutMs
+      },
+      this.name
+    );
+
+    if (!response.ok || !response.body) {
+      throw await buildResponseError(this.name, response);
+    }
+
+    let rawText = "";
+    let promptTokens: number | null = null;
+    let completionTokens: number | null = null;
+
+    for await (const event of iterateSSE(response.body)) {
+      const payload = JSON.parse(event) as GeminiStreamPayload;
+      const delta = payload.candidates?.[0]?.content?.parts
+        ?.map((part) => part.text ?? "")
+        .join("") ?? "";
+      rawText += delta;
+
+      if (payload.usageMetadata) {
+        promptTokens = payload.usageMetadata.promptTokenCount ?? promptTokens;
+        completionTokens = payload.usageMetadata.candidatesTokenCount ?? completionTokens;
+      }
+    }
+
+    return {
+      providerUsed: this.name,
+      modelUsed: this.model,
+      report: parseRepoReviewReport(rawText, buildRepoReviewDefaults(request)),
       rawText,
       promptTokens,
       completionTokens
@@ -437,6 +594,16 @@ function finalizeIssues(
 
     return match ?? issue;
   });
+}
+
+function buildRepoReviewDefaults(request: AIRepoReviewRequest) {
+  return {
+    repoUrl: request.repoUrl,
+    repoName: request.repoName,
+    defaultBranch: request.defaultBranch,
+    filesScanned: request.filesScanned,
+    languages: request.languages
+  };
 }
 
 function getGeminiApiUrl(model: string): string {
