@@ -6,11 +6,17 @@ import { apiFetch } from "../lib/api";
 import type { RepoReviewCorrectedFile, RepoReviewReport, RepoReviewSeverity } from "../lib/repo-review";
 
 const FOCUS_OPTIONS = ["bugs", "security", "performance", "architecture", "tests"] as const;
+type ReviewSource = "github" | "zip";
 
 export function RepoReviewPanel() {
   const [repoUrl, setRepoUrl] = useState("");
+  const [projectZip, setProjectZip] = useState<File | null>(null);
+  const [source, setSource] = useState<ReviewSource>("github");
   const [selectedFocus, setSelectedFocus] = useState<string[]>([]);
   const [customFocus, setCustomFocus] = useState("");
+  const [latestReport, setLatestReport] = useState<RepoReviewReport | null>(null);
+
+  const focus = buildFocus(selectedFocus, customFocus);
 
   const reviewRepo = useMutation({
     mutationFn: () =>
@@ -18,12 +24,34 @@ export function RepoReviewPanel() {
         method: "POST",
         body: JSON.stringify({
           url: repoUrl,
-          focus: buildFocus(selectedFocus, customFocus) || undefined
+          focus: focus || undefined
         })
-      })
+      }),
+    onSuccess: setLatestReport
   });
 
-  const report = reviewRepo.data;
+  const reviewZip = useMutation({
+    mutationFn: () => {
+      if (!projectZip) {
+        throw new Error("Choose a .zip file to review.");
+      }
+
+      const formData = new FormData();
+      formData.append("project", projectZip);
+      if (focus) {
+        formData.append("focus", focus);
+      }
+
+      return apiFetch<RepoReviewReport>("/api/github/repo-review/upload", {
+        method: "POST",
+        body: formData
+      });
+    },
+    onSuccess: setLatestReport
+  });
+
+  const isPending = reviewRepo.isPending || reviewZip.isPending;
+  const activeError = source === "github" ? reviewRepo.error : reviewZip.error;
 
   return (
     <section className="rounded-lg border border-white/10 bg-white/[0.04] p-5 shadow-card">
@@ -31,9 +59,9 @@ export function RepoReviewPanel() {
         <div className="space-y-5">
           <div className="space-y-2">
             <p className="text-xs uppercase tracking-[0.24em] text-signal-mint">Repository Review</p>
-            <h2 className="text-2xl font-semibold text-white">Review a public GitHub repo</h2>
+            <h2 className="text-2xl font-semibold text-white">Review a repo or uploaded project</h2>
             <p className="text-sm leading-7 text-slate-300">
-              Submit a public repository URL. The API fetches source through GitHub, filters noisy files, and reviews static excerpts only.
+              Submit a public repository URL or upload a project zip. The API filters noisy files and reviews static excerpts only.
             </p>
           </div>
 
@@ -41,19 +69,64 @@ export function RepoReviewPanel() {
             className="space-y-4"
             onSubmit={(event) => {
               event.preventDefault();
-              reviewRepo.mutate();
+              if (source === "github") {
+                reviewRepo.mutate();
+                return;
+              }
+
+              reviewZip.mutate();
             }}
           >
-            <label className="block space-y-2 text-sm text-slate-300">
-              <span>Repository URL</span>
-              <input
-                value={repoUrl}
-                onChange={(event) => setRepoUrl(event.target.value)}
-                className="w-full rounded-lg border border-white/10 bg-[#0b1220] px-4 py-3 text-white outline-none transition placeholder:text-slate-500 focus:border-signal-mint"
-                placeholder="https://github.com/owner/repo"
-                disabled={reviewRepo.isPending}
-              />
-            </label>
+            <div className="grid grid-cols-2 gap-2 rounded-lg border border-white/10 bg-[#0b1220] p-1">
+              <button
+                type="button"
+                onClick={() => setSource("github")}
+                className={`rounded-md px-3 py-2 text-sm font-medium transition ${
+                  source === "github"
+                    ? "bg-paper text-ink"
+                    : "text-slate-300 hover:bg-white/10"
+                }`}
+                disabled={isPending}
+              >
+                GitHub URL
+              </button>
+              <button
+                type="button"
+                onClick={() => setSource("zip")}
+                className={`rounded-md px-3 py-2 text-sm font-medium transition ${
+                  source === "zip"
+                    ? "bg-paper text-ink"
+                    : "text-slate-300 hover:bg-white/10"
+                }`}
+                disabled={isPending}
+              >
+                Upload Zip
+              </button>
+            </div>
+
+            {source === "github" ? (
+              <label className="block space-y-2 text-sm text-slate-300">
+                <span>Repository URL</span>
+                <input
+                  value={repoUrl}
+                  onChange={(event) => setRepoUrl(event.target.value)}
+                  className="w-full rounded-lg border border-white/10 bg-[#0b1220] px-4 py-3 text-white outline-none transition placeholder:text-slate-500 focus:border-signal-mint"
+                  placeholder="https://github.com/owner/repo"
+                  disabled={isPending}
+                />
+              </label>
+            ) : (
+              <label className="block space-y-2 text-sm text-slate-300">
+                <span>Project zip</span>
+                <input
+                  type="file"
+                  accept=".zip,application/zip,application/x-zip-compressed"
+                  onChange={(event) => setProjectZip(event.target.files?.[0] ?? null)}
+                  className="w-full rounded-lg border border-white/10 bg-[#0b1220] px-4 py-3 text-sm text-slate-300 outline-none transition file:mr-4 file:rounded-md file:border-0 file:bg-paper file:px-3 file:py-2 file:text-sm file:font-medium file:text-ink hover:file:bg-white focus:border-signal-mint"
+                  disabled={isPending}
+                />
+              </label>
+            )}
 
             <div className="space-y-2">
               <p className="text-sm text-slate-300">Focus</p>
@@ -71,7 +144,7 @@ export function RepoReviewPanel() {
                           ? "border-signal-mint bg-signal-mint/15 text-signal-mint"
                           : "border-white/10 bg-[#0b1220] text-slate-300 hover:border-white/25"
                       }`}
-                      disabled={reviewRepo.isPending}
+                      disabled={isPending}
                     >
                       {focus}
                     </button>
@@ -88,34 +161,38 @@ export function RepoReviewPanel() {
                 className="min-h-24 w-full resize-y rounded-lg border border-white/10 bg-[#0b1220] px-4 py-3 text-white outline-none transition placeholder:text-slate-500 focus:border-signal-mint"
                 placeholder="Prioritize auth, data validation, or test coverage."
                 maxLength={500}
-                disabled={reviewRepo.isPending}
+                disabled={isPending}
               />
             </label>
 
             <button
               type="submit"
-              disabled={reviewRepo.isPending || repoUrl.trim().length === 0}
+              disabled={isPending || (source === "github" ? repoUrl.trim().length === 0 : !projectZip)}
               className="w-full rounded-lg bg-paper px-5 py-3 font-medium text-ink transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
             >
-              {reviewRepo.isPending ? "Reviewing Repo..." : "Review GitHub Repo"}
+              {isPending
+                ? "Reviewing Project..."
+                : source === "github"
+                  ? "Review GitHub Repo"
+                  : "Review Uploaded Zip"}
             </button>
           </form>
 
-          {reviewRepo.isPending ? (
+          {isPending ? (
             <div className="rounded-lg border border-signal-mint/30 bg-signal-mint/10 px-4 py-3 text-sm text-signal-mint">
-              Fetching repository metadata, selecting source files, and generating the review report.
+              Selecting source files, generating the review report, and preparing downloadable fixes.
             </div>
           ) : null}
 
-          {reviewRepo.error ? (
+          {activeError ? (
             <div className="rounded-lg border border-signal-red/30 bg-signal-red/10 px-4 py-3 text-sm text-signal-red">
-              {reviewRepo.error.message}
+              {activeError.message}
             </div>
           ) : null}
         </div>
 
         <div className="min-h-96 rounded-lg border border-white/10 bg-[#0b1220] p-5">
-          {report ? <RepoReviewReportView report={report} /> : <EmptyReportState />}
+          {latestReport ? <RepoReviewReportView report={latestReport} /> : <EmptyReportState />}
         </div>
       </div>
     </section>
@@ -125,6 +202,7 @@ export function RepoReviewPanel() {
 function RepoReviewReportView({ report }: { report: RepoReviewReport }) {
   const hasAggregatePatch = Boolean(report.fixes?.patch);
   const correctedFiles = report.fixes?.correctedFiles ?? [];
+  const artifact = report.artifact;
 
   return (
     <div className="space-y-5">
@@ -141,16 +219,25 @@ function RepoReviewReportView({ report }: { report: RepoReviewReport }) {
         <p className="text-sm leading-7 text-slate-300">{report.summary}</p>
       </div>
 
-      {hasAggregatePatch || correctedFiles.length > 0 ? (
+      {hasAggregatePatch || correctedFiles.length > 0 || artifact ? (
         <div className="rounded-lg border border-signal-mint/30 bg-signal-mint/10 p-4">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-signal-mint">Fix Downloads</p>
               <p className="mt-2 text-sm leading-6 text-slate-200">
-                Download a patch for all non-overlapping fixes, or grab corrected file snapshots generated from the fetched source.
+                Download a patch, corrected file snapshots, or the reviewed zip with validated fixes and a report included.
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
+              {artifact ? (
+                <button
+                  type="button"
+                  onClick={() => downloadBase64File(artifact.filename, artifact.base64, artifact.mimeType)}
+                  className="rounded-lg bg-paper px-3 py-2 text-sm font-medium text-ink transition hover:bg-white"
+                >
+                  Download Corrected Zip
+                </button>
+              ) : null}
               <button
                 type="button"
                 onClick={() => downloadText(buildRepoDownloadName(report.repo.name, "repo-review.patch"), report.fixes?.patch ?? "")}
@@ -338,6 +425,26 @@ function downloadText(filename: string, content: string) {
   const anchor = document.createElement("a");
   anchor.href = url;
   anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
+function downloadBase64File(filename: string, base64: string, mimeType: string) {
+  if (base64.length === 0) {
+    return;
+  }
+
+  const binary = window.atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+
+  const blob = new Blob([bytes], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = sanitizeDownloadName(filename);
   anchor.click();
   URL.revokeObjectURL(url);
 }

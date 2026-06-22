@@ -18,6 +18,12 @@ export interface RepoReviewFixArtifacts {
   correctedFiles: RepoReviewCorrectedFile[];
 }
 
+export interface RepoReviewZipArtifact {
+  filename: string;
+  mimeType: "application/zip";
+  base64: string;
+}
+
 export interface RepoReviewFix {
   lineStart: number;
   lineEnd: number;
@@ -96,6 +102,7 @@ export interface RepoReviewReport {
   findings: RepoReviewFinding[];
   nextSteps: string[];
   fixes?: RepoReviewFixArtifacts;
+  artifact?: RepoReviewZipArtifact;
 }
 
 export interface LearningMetrics {

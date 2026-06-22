@@ -40,6 +40,8 @@ jest.mock("../lib/repo-review.js", () => {
   const actual = jest.requireActual("../lib/repo-review");
   return {
     ...actual,
+    createCorrectedZipArtifact: jest.fn(),
+    prepareZipRepoReview: jest.fn(),
     preparePublicRepoReview: jest.fn()
   };
 });
@@ -60,7 +62,9 @@ const mockRedis = jest.requireMock("../lib/redis.js").redis as {
   incr: jest.Mock;
   expire: jest.Mock;
 };
+const mockCreateCorrectedZipArtifact = jest.requireMock("../lib/repo-review.js").createCorrectedZipArtifact as jest.Mock;
 const mockPreparePublicRepoReview = jest.requireMock("../lib/repo-review.js").preparePublicRepoReview as jest.Mock;
+const mockPrepareZipRepoReview = jest.requireMock("../lib/repo-review.js").prepareZipRepoReview as jest.Mock;
 const mockStreamRepoReviewWithFailover = jest.requireMock("@codementor-ai/ai/fallback").streamRepoReviewWithFailover as jest.Mock;
 
 function createGithubTestApp() {
@@ -110,6 +114,28 @@ beforeEach(() => {
         score: 10
       }
     ]
+  });
+  mockPrepareZipRepoReview.mockResolvedValue({
+    repoUrl: "upload://project",
+    repoName: "project",
+    defaultBranch: "uploaded-zip",
+    fileTree: "* src/index.ts",
+    languages: ["TypeScript"],
+    filesScanned: 1,
+    sourceContext: "### src/index.ts\n   1 | const ok = true;",
+    sourceFiles: [
+      {
+        path: "src/index.ts",
+        size: 16,
+        content: "const ok = true;",
+        score: 10
+      }
+    ]
+  });
+  mockCreateCorrectedZipArtifact.mockResolvedValue({
+    filename: "project-codementor-reviewed.zip",
+    mimeType: "application/zip",
+    base64: "UEsDBAo="
   });
   mockStreamRepoReviewWithFailover.mockResolvedValue({
     providerUsed: "groq",
@@ -203,5 +229,50 @@ describe("POST /api/github/repo-review", () => {
 
     expect(response.status).toBe(413);
     expect(response.body).toEqual({ error: "Repository is too large." });
+  });
+});
+
+describe("POST /api/github/repo-review/upload", () => {
+  it("rejects missing zip uploads", async () => {
+    const response = await request(createGithubTestApp())
+      .post("/api/github/repo-review/upload")
+      .set("Authorization", `Bearer ${bearerToken()}`)
+      .field("focus", "security");
+
+    expect(response.status).toBe(400);
+    expect(response.body).toEqual({ error: "Upload a .zip file in the project field." });
+  });
+
+  it("returns a reviewed downloadable zip artifact", async () => {
+    const response = await request(createGithubTestApp())
+      .post("/api/github/repo-review/upload")
+      .set("Authorization", `Bearer ${bearerToken()}`)
+      .field("focus", "tests")
+      .attach("project", Buffer.from("zip"), "project.zip");
+
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({
+      summary: "Small TypeScript app.",
+      artifact: {
+        filename: "project-codementor-reviewed.zip",
+        mimeType: "application/zip",
+        base64: "UEsDBAo="
+      }
+    });
+    expect(mockPrepareZipRepoReview).toHaveBeenCalledWith(expect.any(Buffer), "project.zip");
+    expect(mockCreateCorrectedZipArtifact).toHaveBeenCalledWith(
+      expect.any(Buffer),
+      expect.objectContaining({ summary: "Small TypeScript app." }),
+      "project.zip"
+    );
+    expect(mockStreamRepoReviewWithFailover).toHaveBeenCalledWith(
+      expect.objectContaining({
+        repoName: "project",
+        focus: "tests"
+      }),
+      expect.objectContaining({
+        timeoutMs: expect.any(Number)
+      })
+    );
   });
 });

@@ -2,11 +2,14 @@ import {
   RepoReviewError,
   attachRepoReviewFixArtifacts,
   buildSourceContext,
+  createCorrectedZipArtifact,
   parseGitHubRepoUrl,
+  prepareZipRepoReview,
   selectReviewCandidates,
   type GitHubTreeEntry,
   type RepoReviewLimits
 } from "./repo-review";
+import JSZip from "jszip";
 
 const LIMITS: RepoReviewLimits = {
   maxRepoSizeKb: 10_000,
@@ -171,6 +174,73 @@ describe("attachRepoReviewFixArtifacts", () => {
   });
 });
 
+describe("prepareZipRepoReview", () => {
+  it("prepares supported source files from uploaded zips", async () => {
+    const buffer = await buildZipBuffer({
+      "project/package.json": JSON.stringify({ dependencies: { react: "latest" } }),
+      "project/src/index.ts": "export const ok = true;",
+      "project/node_modules/pkg/index.js": "module.exports = true;",
+      "project/assets/logo.png": "\u0000png"
+    });
+
+    const prepared = await prepareZipRepoReview(buffer, "project.zip", LIMITS);
+
+    expect(prepared.repoName).toBe("project");
+    expect(prepared.defaultBranch).toBe("uploaded-zip");
+    expect(prepared.sourceFiles.map((file) => file.path).sort()).toEqual([
+      "project/package.json",
+      "project/src/index.ts"
+    ]);
+    expect(prepared.languages).toEqual(expect.arrayContaining(["TypeScript", "React"]));
+  });
+
+  it("rejects unsafe zip paths", async () => {
+    const zip = new JSZip();
+    zip.file("../src/index.ts", "export const ok = true;");
+
+    await expect(prepareZipRepoReview(await zip.generateAsync({ type: "nodebuffer" }), "unsafe.zip", LIMITS))
+      .rejects.toThrow(RepoReviewError);
+  });
+});
+
+describe("createCorrectedZipArtifact", () => {
+  it("returns a corrected zip with fixed files and an embedded report", async () => {
+    const buffer = await buildZipBuffer({
+      "src/index.ts": "export const value = 1 == 1;"
+    });
+    const report = attachRepoReviewFixArtifacts({
+      summary: "Review",
+      repo: {
+        url: "upload://project",
+        name: "project",
+        defaultBranch: "uploaded-zip"
+      },
+      stats: {
+        filesScanned: 1,
+        languages: ["TypeScript"]
+      },
+      findings: [
+        findingWithFix("src/index.ts", 1, 1, "export const value = 1 === 1;")
+      ],
+      nextSteps: ["Run tests."]
+    }, [
+      {
+        path: "src/index.ts",
+        size: 28,
+        score: 10,
+        content: "export const value = 1 == 1;"
+      }
+    ]);
+
+    const artifact = await createCorrectedZipArtifact(buffer, report, "project.zip");
+    const correctedZip = await JSZip.loadAsync(Buffer.from(artifact.base64, "base64"));
+
+    await expect(correctedZip.file("src/index.ts")?.async("text")).resolves.toBe("export const value = 1 === 1;");
+    await expect(correctedZip.file("CODEMENTOR_REVIEW_REPORT.md")?.async("text")).resolves.toContain("Run tests.");
+    expect(artifact.filename).toBe("project-codementor-reviewed.zip");
+  });
+});
+
 function treeFile(path: string, size: number): GitHubTreeEntry {
   return {
     path,
@@ -196,4 +266,13 @@ function findingWithFix(file: string, lineStart: number, lineEnd: number, replac
       correctedFile: null
     }
   };
+}
+
+async function buildZipBuffer(files: Record<string, string>): Promise<Buffer> {
+  const zip = new JSZip();
+  for (const [filePath, content] of Object.entries(files)) {
+    zip.file(filePath, content);
+  }
+
+  return zip.generateAsync({ type: "nodebuffer" });
 }

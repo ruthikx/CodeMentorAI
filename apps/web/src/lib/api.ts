@@ -15,13 +15,20 @@ export function apiUrl(path: string): string {
 
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const token = await getBrowserToken();
+  const headers = new Headers(init?.headers);
+  const isFormData = typeof FormData !== "undefined" && init?.body instanceof FormData;
+
+  if (!isFormData && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+
   const response = await fetch(apiUrl(path), {
     ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(init?.headers ?? {})
-    },
+    headers,
     cache: "no-store"
   });
 

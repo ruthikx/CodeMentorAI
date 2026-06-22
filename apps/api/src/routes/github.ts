@@ -1,12 +1,21 @@
 import { Router } from "express";
+import multer from "multer";
 import { AIServiceUnavailableError, streamRepoReviewWithFailover } from "@codementor-ai/ai/fallback";
 import { asyncRoute } from "../lib/async-route.js";
 import { githubReviewQueue } from "../lib/github-queue.js";
 import { fetchGitHubRepos, verifyGitHubSignature } from "../lib/github.js";
 import { prisma } from "../lib/prisma.js";
-import { attachRepoReviewFixArtifacts, preparePublicRepoReview, RepoReviewError } from "../lib/repo-review.js";
+import {
+  attachRepoReviewFixArtifacts,
+  createCorrectedZipArtifact,
+  getRepoReviewLimits,
+  preparePublicRepoReview,
+  prepareZipRepoReview,
+  RepoReviewError
+} from "../lib/repo-review.js";
 import { reviewRateLimitMiddleware } from "../middleware/rate-limit.js";
 import type { AuthenticatedRequest } from "../types/express.js";
+import type { RequestHandler } from "express";
 
 export const githubRouter = Router();
 
@@ -14,6 +23,39 @@ interface PublicRepoReviewBody {
   url: string;
   focus?: string;
 }
+
+interface UploadedRepoReviewBody {
+  focus?: string;
+}
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    files: 1,
+    fileSize: getRepoReviewLimits().maxRepoSizeKb * 1024
+  }
+});
+
+const uploadProjectZip: RequestHandler = (request, response, next) => {
+  upload.single("project")(request, response, (error: unknown) => {
+    if (error instanceof multer.MulterError) {
+      if (error.code === "LIMIT_FILE_SIZE") {
+        response.status(413).json({ error: "Uploaded zip is too large for repository review." });
+        return;
+      }
+
+      response.status(400).json({ error: "Upload failed. Send one .zip file in the project field." });
+      return;
+    }
+
+    if (error) {
+      next(error);
+      return;
+    }
+
+    next();
+  });
+};
 
 function isGitHubUnauthorizedError(error: unknown): boolean {
   return error instanceof Error && error.message.includes("status 401");
@@ -96,6 +138,73 @@ githubRouter.post(
       });
 
       response.json(attachRepoReviewFixArtifacts(aiResponse.report, preparedRepo.sourceFiles));
+    } catch (error) {
+      if (error instanceof RepoReviewError) {
+        response.status(error.statusCode).json({ error: error.message });
+        return;
+      }
+
+      if (error instanceof AIServiceUnavailableError) {
+        response.status(error.statusCode).json({
+          error: "Repository review is temporarily unavailable. Try again in a few minutes."
+        });
+        return;
+      }
+
+      throw error;
+    }
+  })
+);
+
+githubRouter.post(
+  "/repo-review/upload",
+  reviewRateLimitMiddleware,
+  uploadProjectZip,
+  asyncRoute(async (
+    request: AuthenticatedRequest<Record<string, string>, unknown, UploadedRepoReviewBody>,
+    response
+  ) => {
+    const file = request.file;
+    const { focus } = request.body;
+
+    if (!file) {
+      response.status(400).json({ error: "Upload a .zip file in the project field." });
+      return;
+    }
+
+    if (!file.originalname.toLowerCase().endsWith(".zip")) {
+      response.status(400).json({ error: "Uploaded project must be a .zip file." });
+      return;
+    }
+
+    if (focus !== undefined && typeof focus !== "string") {
+      response.status(400).json({ error: "Review focus must be a string when provided." });
+      return;
+    }
+
+    const normalizedFocus = focus?.trim();
+    if (normalizedFocus && normalizedFocus.length > 500) {
+      response.status(400).json({ error: "Review focus must be 500 characters or fewer." });
+      return;
+    }
+
+    try {
+      const preparedRepo = await prepareZipRepoReview(file.buffer, file.originalname);
+      const aiResponse = await streamRepoReviewWithFailover({
+        ...preparedRepo,
+        focus: normalizedFocus,
+        maxFindings: 8
+      }, {
+        timeoutMs: getRepoReviewAiTimeoutMs()
+      });
+
+      const report = attachRepoReviewFixArtifacts(aiResponse.report, preparedRepo.sourceFiles);
+      const correctedZip = await createCorrectedZipArtifact(file.buffer, report, file.originalname);
+
+      response.json({
+        ...report,
+        artifact: correctedZip
+      });
     } catch (error) {
       if (error instanceof RepoReviewError) {
         response.status(error.statusCode).json({ error: error.message });

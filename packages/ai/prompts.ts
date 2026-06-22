@@ -83,7 +83,7 @@ export function buildRepoReviewMessages(input: RepoReviewPromptInput): AIMessage
     {
       role: "user",
       content: [
-        "Review this public GitHub repository from static source excerpts only.",
+        "Review this repository from static source excerpts only.",
         "",
         "Return exactly one JSON object with this schema:",
         "{",

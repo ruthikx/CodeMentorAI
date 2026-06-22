@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { AppProviders } from "../src/providers";
+import { Footer } from "../src/components/footer";
 import { Navbar } from "../src/components/navbar";
 
 export const metadata: Metadata = {
@@ -15,10 +16,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className="bg-ink text-paper antialiased">
+      <body className="flex min-h-screen flex-col bg-ink text-paper antialiased">
         <AppProviders>
           <Navbar />
-          {children}
+          <div className="flex-1">{children}</div>
+          <Footer />
         </AppProviders>
       </body>
     </html>

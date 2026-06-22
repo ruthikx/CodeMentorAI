@@ -1,3 +1,4 @@
+import JSZip from "jszip";
 import type { RepoReviewCorrectedFile, RepoReviewFinding, RepoReviewReport } from "@codementor-ai/types";
 
 export interface ParsedGitHubRepoUrl {
@@ -40,6 +41,12 @@ export interface PreparedRepoReview {
   sourceFiles: RepoReviewSourceFile[];
 }
 
+export interface ZipRepoReviewArtifact {
+  filename: string;
+  mimeType: "application/zip";
+  base64: string;
+}
+
 interface GitHubRepoResponse {
   full_name?: string;
   name?: string;
@@ -65,6 +72,13 @@ interface ReviewCandidate {
   size: number;
   url: string;
   score: number;
+}
+
+interface LocalReviewCandidate {
+  path: string;
+  size: number;
+  score: number;
+  entry: JSZip.JSZipObject;
 }
 
 const DEFAULT_LIMITS: RepoReviewLimits = {
@@ -288,6 +302,45 @@ export function attachRepoReviewFixArtifacts(
       patch: aggregatePatches.length > 0 ? aggregatePatches.join("\n") : null,
       correctedFiles: [...correctedByPath.values()].sort((left, right) => left.file.localeCompare(right.file))
     }
+  };
+}
+
+export async function createCorrectedZipArtifact(
+  inputZipBuffer: Buffer,
+  report: RepoReviewReport,
+  originalFilename: string
+): Promise<ZipRepoReviewArtifact> {
+  const zip = await loadZip(inputZipBuffer);
+
+  for (const file of report.fixes?.correctedFiles ?? []) {
+    if (!isSafeZipPath(file.file)) {
+      continue;
+    }
+
+    const existing = zip.file(file.file);
+    const date = existing?.date;
+    zip.file(file.file, file.content, {
+      date,
+      createFolders: true
+    });
+  }
+
+  zip.file("CODEMENTOR_REVIEW_REPORT.md", buildRepoReviewMarkdown(report), {
+    createFolders: true
+  });
+
+  const correctedZipBuffer = await zip.generateAsync({
+    type: "nodebuffer",
+    compression: "DEFLATE",
+    compressionOptions: {
+      level: 6
+    }
+  });
+
+  return {
+    filename: buildCorrectedZipFilename(originalFilename),
+    mimeType: "application/zip",
+    base64: correctedZipBuffer.toString("base64")
   };
 }
 
@@ -558,6 +611,90 @@ export async function preparePublicRepoReview(
   };
 }
 
+export async function prepareZipRepoReview(
+  inputZipBuffer: Buffer,
+  originalFilename: string,
+  limits: RepoReviewLimits = getRepoReviewLimits()
+): Promise<PreparedRepoReview> {
+  if (inputZipBuffer.length > limits.maxRepoSizeKb * 1024) {
+    throw new RepoReviewError(
+      `Uploaded zip is too large to review right now (${formatBytes(inputZipBuffer.length)}). The current limit is ${formatBytes(limits.maxRepoSizeKb * 1024)}.`,
+      413
+    );
+  }
+
+  const zip = await loadZip(inputZipBuffer);
+  const allFiles: GitHubTreeEntry[] = [];
+  const localFiles = new Map<string, LocalReviewCandidate>();
+
+  for (const entry of Object.values(zip.files)) {
+    if (entry.dir) {
+      continue;
+    }
+
+    const normalizedPath = normalizeZipPath(entry.name);
+    const originalPath = entry.unsafeOriginalName ?? entry.name;
+    if (!normalizedPath || !isSafeZipPath(entry.name) || !isSafeZipPath(originalPath)) {
+      throw new RepoReviewError("Uploaded zip contains an unsafe file path.", 400);
+    }
+
+    if (localFiles.has(normalizedPath)) {
+      continue;
+    }
+
+    const size = getZipEntryUncompressedSize(entry);
+    allFiles.push({
+      path: normalizedPath,
+      type: "blob",
+      size
+    });
+    localFiles.set(normalizedPath, {
+      path: normalizedPath,
+      size,
+      score: scoreReviewPath(normalizedPath, size),
+      entry
+    });
+  }
+
+  if (allFiles.length === 0) {
+    throw new RepoReviewError("Uploaded zip did not contain any files.", 400);
+  }
+
+  if (allFiles.length > limits.maxTreeFiles) {
+    throw new RepoReviewError(
+      `Uploaded zip has ${allFiles.length} files, which exceeds the current ${limits.maxTreeFiles} file limit.`,
+      413
+    );
+  }
+
+  const candidates = selectLocalReviewCandidates([...localFiles.values()], limits);
+  if (candidates.length === 0) {
+    throw new RepoReviewError(
+      "No supported source files were found after applying file type, size, and noise-folder filters.",
+      400
+    );
+  }
+
+  const sourceFiles = await readLocalSourceFiles(candidates, limits);
+  if (sourceFiles.length === 0) {
+    throw new RepoReviewError("Supported files were found, but none could be read as UTF-8 text.", 422);
+  }
+
+  const languages = detectLanguagesAndFrameworks(sourceFiles, allFiles);
+  const repoName = buildRepoNameFromZipFilename(originalFilename);
+
+  return {
+    repoUrl: `upload://${repoName}`,
+    repoName,
+    defaultBranch: "uploaded-zip",
+    fileTree: buildFileTreeSummary(allFiles, new Set(sourceFiles.map((file) => file.path))),
+    languages,
+    filesScanned: sourceFiles.length,
+    sourceContext: buildSourceContext(sourceFiles, limits.maxContextChars),
+    sourceFiles
+  };
+}
+
 export function parseGitHubRepoUrl(input: string): ParsedGitHubRepoUrl {
   const trimmed = input.trim();
   if (trimmed.length === 0) {
@@ -725,6 +862,76 @@ async function fetchSourceFiles(
   return files;
 }
 
+function selectLocalReviewCandidates(
+  files: LocalReviewCandidate[],
+  limits: RepoReviewLimits
+): LocalReviewCandidate[] {
+  const eligible = files
+    .filter((entry) =>
+      entry.size > 0 &&
+      entry.size <= limits.maxFileSizeBytes &&
+      !isIgnoredPath(entry.path) &&
+      isSupportedTextFile(entry.path)
+    )
+    .sort((left, right) => right.score - left.score || left.size - right.size || left.path.localeCompare(right.path));
+
+  const selected: LocalReviewCandidate[] = [];
+  let totalBytes = 0;
+
+  for (const candidate of eligible) {
+    if (selected.length >= limits.maxFiles) {
+      break;
+    }
+
+    if (totalBytes + candidate.size > limits.maxDownloadBytes) {
+      continue;
+    }
+
+    selected.push(candidate);
+    totalBytes += candidate.size;
+  }
+
+  return selected;
+}
+
+async function readLocalSourceFiles(
+  candidates: LocalReviewCandidate[],
+  limits: RepoReviewLimits
+): Promise<RepoReviewSourceFile[]> {
+  const files: RepoReviewSourceFile[] = [];
+  let downloadedBytes = 0;
+
+  for (const candidate of candidates) {
+    const buffer = await candidate.entry.async("nodebuffer");
+    if (buffer.length > limits.maxFileSizeBytes || downloadedBytes + buffer.length > limits.maxDownloadBytes) {
+      continue;
+    }
+
+    const content = buffer.toString("utf8");
+    if (content.includes("\u0000") || content.trim().length === 0) {
+      continue;
+    }
+
+    downloadedBytes += buffer.length;
+    files.push({
+      path: candidate.path,
+      size: buffer.length,
+      content,
+      score: candidate.score
+    });
+  }
+
+  return files;
+}
+
+async function loadZip(inputZipBuffer: Buffer): Promise<JSZip> {
+  try {
+    return await JSZip.loadAsync(inputZipBuffer);
+  } catch {
+    throw new RepoReviewError("Uploaded file must be a valid .zip archive.", 400);
+  }
+}
+
 async function fetchGitHubJson<T>(url: string): Promise<T> {
   const response = await fetch(url, {
     headers: buildGitHubHeaders()
@@ -805,7 +1012,7 @@ function detectLanguagesAndFrameworks(sourceFiles: RepoReviewSourceFile[], treeF
     .map(([language]) => language);
 
   const frameworks = new Set<string>();
-  const packageJson = sourceByPath.get("package.json");
+  const packageJson = findSourceFileByName(sourceByPath, "package.json");
   if (packageJson) {
     if (/"next"\s*:/u.test(packageJson)) frameworks.add("Next.js");
     if (/"react"\s*:/u.test(packageJson)) frameworks.add("React");
@@ -818,20 +1025,31 @@ function detectLanguagesAndFrameworks(sourceFiles: RepoReviewSourceFile[], treeF
     if (/"vitest"\s*:/u.test(packageJson)) frameworks.add("Vitest");
   }
 
-  if (allPaths.includes("pyproject.toml") || allPaths.includes("requirements.txt")) {
-    const pythonManifest = sourceByPath.get("pyproject.toml") ?? sourceByPath.get("requirements.txt") ?? "";
+  const pyprojectToml = findSourceFileByName(sourceByPath, "pyproject.toml");
+  const requirementsTxt = findSourceFileByName(sourceByPath, "requirements.txt");
+  if (allPaths.some((path) => getLowerFileName(path) === "pyproject.toml" || getLowerFileName(path) === "requirements.txt")) {
+    const pythonManifest = pyprojectToml ?? requirementsTxt ?? "";
     if (/django/iu.test(pythonManifest)) frameworks.add("Django");
     if (/flask/iu.test(pythonManifest)) frameworks.add("Flask");
     if (/fastapi/iu.test(pythonManifest)) frameworks.add("FastAPI");
     if (/pytest/iu.test(pythonManifest)) frameworks.add("pytest");
   }
 
-  if (allPaths.includes("go.mod")) frameworks.add("Go modules");
-  if (allPaths.includes("cargo.toml")) frameworks.add("Cargo");
-  if (allPaths.includes("pom.xml") || allPaths.includes("build.gradle")) frameworks.add("JVM build");
+  if (allPaths.some((path) => getLowerFileName(path) === "go.mod")) frameworks.add("Go modules");
+  if (allPaths.some((path) => getLowerFileName(path) === "cargo.toml")) frameworks.add("Cargo");
+  if (allPaths.some((path) => getLowerFileName(path) === "pom.xml" || getLowerFileName(path) === "build.gradle")) frameworks.add("JVM build");
   if (allPaths.some((path) => path.endsWith(".prisma"))) frameworks.add("Prisma");
 
   return Array.from(new Set([...languages, ...frameworks])).slice(0, 12);
+}
+
+function findSourceFileByName(sourceByPath: Map<string, string>, fileName: string): string | undefined {
+  const directMatch = sourceByPath.get(fileName);
+  if (directMatch) {
+    return directMatch;
+  }
+
+  return [...sourceByPath.entries()].find(([path]) => getLowerFileName(path) === fileName)?.[1];
 }
 
 function chunkNumberedFile(file: RepoReviewSourceFile): Array<{ lineStart: number; lineEnd: number; text: string }> {
@@ -930,6 +1148,115 @@ function languageFromFileName(filePath: string): string | null {
   }
 
   return null;
+}
+
+function getZipEntryUncompressedSize(entry: JSZip.JSZipObject): number {
+  const compressedEntry = entry as JSZip.JSZipObject & {
+    _data?: {
+      uncompressedSize?: number;
+    };
+  };
+
+  const uncompressedSize = compressedEntry._data?.uncompressedSize;
+  return typeof uncompressedSize === "number" && Number.isFinite(uncompressedSize) ? uncompressedSize : 0;
+}
+
+function normalizeZipPath(filePath: string): string {
+  return filePath
+    .replace(/\\/g, "/")
+    .split("/")
+    .filter((segment) => segment.length > 0)
+    .join("/");
+}
+
+function isSafeZipPath(filePath: string): boolean {
+  const rawPath = filePath.replace(/\\/g, "/");
+  const normalized = normalizeZipPath(rawPath);
+  if (
+    normalized.length === 0 ||
+    rawPath.startsWith("/") ||
+    /^[a-z]:/iu.test(rawPath) ||
+    rawPath.includes("\u0000")
+  ) {
+    return false;
+  }
+
+  return rawPath
+    .split("/")
+    .filter((segment) => segment.length > 0)
+    .every((segment) => segment !== "." && segment !== "..");
+}
+
+function buildRepoNameFromZipFilename(filename: string): string {
+  const baseName = filename.split(/[\\/]/u).pop() ?? "uploaded-project";
+  const withoutZip = baseName.replace(/\.zip$/iu, "");
+  return sanitizeArchiveName(withoutZip) || "uploaded-project";
+}
+
+function buildCorrectedZipFilename(filename: string): string {
+  return `${buildRepoNameFromZipFilename(filename)}-codementor-reviewed.zip`;
+}
+
+function sanitizeArchiveName(value: string): string {
+  return value
+    .replace(/^[a-z]:/iu, "")
+    .replace(/[^a-z0-9._-]+/giu, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+function buildRepoReviewMarkdown(report: RepoReviewReport): string {
+  const lines = [
+    "# CodeMentorAI Repository Review",
+    "",
+    `Repository: ${report.repo.name}`,
+    `Source: ${report.repo.url}`,
+    `Files scanned: ${report.stats.filesScanned}`,
+    `Languages/frameworks: ${report.stats.languages.join(", ") || "unknown"}`,
+    "",
+    "## Summary",
+    "",
+    report.summary,
+    "",
+    "## Findings",
+    ""
+  ];
+
+  if (report.findings.length === 0) {
+    lines.push("No concrete findings were returned for the selected source excerpts.", "");
+  } else {
+    report.findings.forEach((finding, index) => {
+      lines.push(
+        `### ${index + 1}. ${finding.title}`,
+        "",
+        `Severity: ${finding.severity}`,
+        `File: ${finding.file}${finding.line ? `:${finding.line}` : ""}`,
+        "",
+        finding.description,
+        "",
+        `Recommendation: ${finding.recommendation}`,
+        ""
+      );
+
+      if (finding.fix?.patch) {
+        lines.push("Patch:", "", "```diff", finding.fix.patch, "```", "");
+      }
+    });
+  }
+
+  if (report.nextSteps.length > 0) {
+    lines.push("## Next Steps", "");
+    report.nextSteps.forEach((step) => {
+      lines.push(`- ${step}`);
+    });
+    lines.push("");
+  }
+
+  if (report.fixes?.patch) {
+    lines.push("## Combined Patch", "", "```diff", report.fixes.patch, "```", "");
+  }
+
+  return `${lines.join("\n").trim()}\n`;
 }
 
 function getLowerFileName(filePath: string): string {
