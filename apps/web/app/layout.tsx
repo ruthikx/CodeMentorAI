@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { AppProviders } from "../src/providers";
-import { Footer } from "../src/components/footer";
-import { Navbar } from "../src/components/navbar";
+import { AppShell } from "../src/components/app-shell";
 
 export const metadata: Metadata = {
   title: "CodeMentor AI",
@@ -18,9 +17,7 @@ export default function RootLayout({
     <html lang="en">
       <body className="flex min-h-screen flex-col bg-ink text-paper antialiased">
         <AppProviders>
-          <Navbar />
-          <div className="flex-1">{children}</div>
-          <Footer />
+          <AppShell>{children}</AppShell>
         </AppProviders>
       </body>
     </html>

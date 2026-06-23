@@ -12,10 +12,13 @@
   "dependencies": {
     "@monaco-editor/react": "^4.6.0",
     "@prisma/client": "^5.20.0",
+    "@splinetool/react-spline": "^4.1.0",
+    "@splinetool/runtime": "^1.12.69",
     "@tanstack/react-query": "^5.59.16",
     "bcryptjs": "^3.0.3",
     "framer-motion": "^11.11.11",
     "jsonwebtoken": "^9.0.2",
+    "lucide-react": "^0.546.0",
     "next": "^14.2.15",
     "next-auth": "^4.24.14",
     "react": "^18.3.1",
