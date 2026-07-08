@@ -5,12 +5,14 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import GitHubProvider from "next-auth/providers/github";
 import { decryptOAuthToken, encryptOAuthToken } from "./oauth-token-crypto";
 import { prisma } from "./prisma";
+import { normalizeTier, type UserTier } from "./tiers";
 
 const SESSION_MAX_AGE_SECONDS = 60 * 60;
 const REFRESH_WINDOW_SECONDS = 7 * 24 * 60 * 60;
 const JWT_AUDIENCE = process.env.JWT_AUDIENCE;
 const JWT_ISSUER = process.env.JWT_ISSUER;
 const JWT_SECRET = process.env.JWT_SECRET;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export const authOptions: NextAuthOptions = {
   session: {
@@ -70,7 +72,8 @@ export const authOptions: NextAuthOptions = {
           return {
             id: dbUser.id,
             email: dbUser.email,
-            name: dbUser.name ?? dbUser.email
+            name: dbUser.name ?? dbUser.email,
+            tier: dbUser.tier
           };
         }
 
@@ -99,6 +102,7 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async jwt({ token, account, user }) {
       const now = Math.floor(Date.now() / 1000);
+      let resolvedTier: UserTier | undefined;
 
       if (account?.access_token) {
         token.githubAccessToken = encryptOAuthToken(account.access_token);
@@ -125,12 +129,14 @@ export const authOptions: NextAuthOptions = {
         });
 
         token.sub = dbUser.id;
-        token.tier = dbUser.tier;
+        resolvedTier = dbUser.tier;
       } else if (user?.id) {
         token.sub = user.id;
+        resolvedTier = normalizeAuthTier(user.tier, normalizeAuthTier(token.tier));
       }
 
-      token.tier = token.tier ?? "free";
+      resolvedTier = resolvedTier ?? await getPersistedUserTier(token.sub);
+      token.tier = resolvedTier ?? normalizeAuthTier(token.tier);
       token.accessTokenExpiresAt = now + SESSION_MAX_AGE_SECONDS;
       token.refreshWindowExpiresAt = token.refreshWindowExpiresAt ?? now + REFRESH_WINDOW_SECONDS;
 
@@ -139,7 +145,7 @@ export const authOptions: NextAuthOptions = {
     async session({ session, token }) {
       if (session.user) {
         session.user.id = token.sub ?? "";
-        session.user.tier = token.tier === "pro" || token.tier === "team" ? token.tier : "free";
+        session.user.tier = normalizeAuthTier(token.tier);
       }
 
       session.expires = new Date(Number(token.accessTokenExpiresAt ?? 0) * 1000).toISOString();
@@ -166,7 +172,7 @@ function signApiToken(token: {
     {
       sub: token.sub,
       email: typeof token.email === "string" ? token.email : undefined,
-      tier: token.tier === "pro" || token.tier === "team" ? token.tier : "free",
+      tier: normalizeAuthTier(token.tier),
       githubAccessToken
     },
     JWT_SECRET,
@@ -189,4 +195,21 @@ function getDecryptedGitHubAccessToken(encryptedToken: string | undefined): stri
   } catch {
     return undefined;
   }
+}
+
+function normalizeAuthTier(value: unknown, fallback: UserTier = "free"): UserTier {
+  return typeof value === "string" ? normalizeTier(value, fallback) : fallback;
+}
+
+async function getPersistedUserTier(userId: string | undefined): Promise<UserTier | undefined> {
+  if (!userId || !UUID_PATTERN.test(userId)) {
+    return undefined;
+  }
+
+  const dbUser = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { tier: true }
+  });
+
+  return dbUser?.tier;
 }

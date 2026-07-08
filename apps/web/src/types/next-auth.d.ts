@@ -1,6 +1,10 @@
 import type { DefaultSession } from "next-auth";
 
 declare module "next-auth" {
+  interface User {
+    tier?: "free" | "pro" | "team";
+  }
+
   interface Session {
     apiToken?: string;
     user?: DefaultSession["user"] & {
