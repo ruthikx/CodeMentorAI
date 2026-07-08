@@ -49,20 +49,129 @@ export interface ChatMessage {
 }
 
 export function detectLanguage(sourceCode: string): string {
-  const sample = sourceCode.slice(0, 200).toLowerCase();
+  const sample = sourceCode.slice(0, 5000);
+  const candidates: Array<{ language: string; score: number; priority: number }> = [
+    {
+      language: "python",
+      score: scoreLanguage(sample, [
+        [/^\s*(?:async\s+)?def\s+\w+\s*\(/mu, 5],
+        [/^\s*class\s+\w+(?:\([^)]*\))?:\s*$/mu, 4],
+        [/^\s*(?:from\s+[\w.]+\s+import|import\s+\w+)/mu, 3],
+        [/^\s*if\s+__name__\s*==\s*["']__main__["']\s*:/mu, 4],
+        [/^\s*(?:if|elif|else|for|while|try|except|finally|with)\b.*:\s*$/mu, 2],
+        [/\bprint\s*\(/u, 2],
+        [/\brange\s*\(/u, 1],
+        [/\bself\b/u, 1]
+      ]),
+      priority: 9
+    },
+    {
+      language: "typescript",
+      score: scoreLanguage(sample, [
+        [/^\s*interface\s+\w+/mu, 6],
+        [/^\s*type\s+\w+\s*=/mu, 5],
+        [/\bimport\s+type\b/u, 4],
+        [/\benum\s+\w+/u, 4],
+        [/\b(?:public|private|protected|readonly)\s+\w+/u, 2],
+        [/:\s*(?:string|number|boolean|unknown|any|void|never|Promise<|Array<|Record<)/u, 4],
+        [/\)\s*:\s*[A-Z]\w*/u, 3],
+        [/\bas\s+const\b/u, 2]
+      ]),
+      priority: 8
+    },
+    {
+      language: "java",
+      score: scoreLanguage(sample, [
+        [/^\s*public\s+(?:final\s+)?class\s+\w+/mu, 6],
+        [/\bpublic\s+static\s+void\s+main\s*\(/u, 6],
+        [/\bSystem\.out\.print/u, 5],
+        [/^\s*import\s+java\./mu, 4],
+        [/\bString\[\]\s+\w+/u, 3]
+      ]),
+      priority: 7
+    },
+    {
+      language: "go",
+      score: scoreLanguage(sample, [
+        [/^\s*package\s+main\b/mu, 5],
+        [/^\s*func\s+\w+\s*\(/mu, 4],
+        [/\bfmt\.Print/u, 3],
+        [/:=/u, 2]
+      ]),
+      priority: 7
+    },
+    {
+      language: "rust",
+      score: scoreLanguage(sample, [
+        [/^\s*fn\s+\w+\s*\(/mu, 5],
+        [/\bprintln!\s*\(/u, 4],
+        [/\blet\s+mut\b/u, 3],
+        [/^\s*use\s+[\w:]+;/mu, 3]
+      ]),
+      priority: 7
+    },
+    {
+      language: "cpp",
+      score: scoreLanguage(sample, [
+        [/^\s*#include\s*</mu, 5],
+        [/\bstd::/u, 4],
+        [/\bcout\s*<</u, 3],
+        [/\bint\s+main\s*\(/u, 2]
+      ]),
+      priority: 7
+    },
+    {
+      language: "html",
+      score: scoreLanguage(sample, [
+        [/<!doctype\s+html/i, 5],
+        [/<html\b/i, 5],
+        [/<\/(?:body|div|main|section|script)>/i, 3],
+        [/<(?:div|main|section|article|button|form|input)\b[^>]*>/i, 2]
+      ]),
+      priority: 6
+    },
+    {
+      language: "sql",
+      score: scoreLanguage(sample, [
+        [/^\s*select\b[\s\S]*\bfrom\b/imu, 5],
+        [/^\s*(?:insert\s+into|update|delete\s+from|create\s+table|alter\s+table)\b/imu, 5],
+        [/\bwhere\b[\s\S]*=/iu, 2],
+        [/\bjoin\b[\s\S]*\bon\b/iu, 2]
+      ]),
+      priority: 6
+    },
+    {
+      language: "css",
+      score: scoreLanguage(sample, [
+        [/^\s*@media\b/mu, 5],
+        [/^\s*(?:body|html|\.|#|[a-z-]+\s*[,{])[\s\S]*\{[\s\S]*(?:color|display|margin|padding|font-size)\s*:/imu, 4],
+        [/\b(?:display|position|margin|padding|font-size|background(?:-color)?)\s*:/iu, 3]
+      ]),
+      priority: 5
+    },
+    {
+      language: "javascript",
+      score: scoreLanguage(sample, [
+        [/\bconsole\.(?:log|error|warn|info)\s*\(/u, 3],
+        [/^\s*(?:async\s+)?function\s+\w+\s*\(/mu, 4],
+        [/^\s*(?:const|let|var)\s+\w+\s*=/mu, 2],
+        [/=>/u, 2],
+        [/\b(?:require|module\.exports|exports\.)\b/u, 3],
+        [/\b(?:document|window)\./u, 2]
+      ]),
+      priority: 1
+    }
+  ];
 
-  if (sample.includes("def ") && sample.includes("import ")) return "python";
-  if (sample.includes("console.log") || sample.includes("function ") || sample.includes("=>")) return "javascript";
-  if (sample.includes("interface ") || sample.includes(": string") || sample.includes("type ")) return "typescript";
-  if (sample.includes("#include") || sample.includes("std::")) return "cpp";
-  if (sample.includes("public class ") || sample.includes("system.out")) return "java";
-  if (sample.includes("package main") || sample.includes("func main")) return "go";
-  if (sample.includes("fn main") || sample.includes("let mut")) return "rust";
-  if (sample.includes("<html") || sample.includes("</div>")) return "html";
-  if (sample.includes("select ") || sample.includes(" from ")) return "sql";
-  if (sample.includes("body {") || sample.includes("@media")) return "css";
+  const bestMatch = candidates
+    .filter((candidate) => candidate.score >= 2)
+    .sort((left, right) => right.score - left.score || right.priority - left.priority)[0];
 
-  return "plaintext";
+  return bestMatch?.language ?? "plaintext";
+}
+
+function scoreLanguage(sourceCode: string, rules: Array<[RegExp, number]>): number {
+  return rules.reduce((score, [pattern, weight]) => score + (pattern.test(sourceCode) ? weight : 0), 0);
 }
 
 export function getSeverityMeta(severity: ReviewSeverity) {
