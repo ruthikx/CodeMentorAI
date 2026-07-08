@@ -6,6 +6,8 @@ import { usePathname } from "next/navigation";
 import { Menu, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import Image from "next/image";
+import logoImage from "../../public/logo.png";
 
 const navItems = [
   { href: "/review/new", label: "Review" },
@@ -42,8 +44,16 @@ export function Navbar() {
     >
       <nav className="mx-auto flex h-20 max-w-[1400px] items-center justify-between px-6">
         <Link className="group flex flex-shrink-0 items-center gap-3" href="/">
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-tr from-blue-500 to-purple-500 shadow-[0_0_15px_rgba(59,130,246,0.4)] transition-shadow duration-300 group-hover:shadow-[0_0_20px_rgba(59,130,246,0.6)]">
-            <div className="h-3 w-3 rounded-full bg-white" />
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/[0.04] ring-1 ring-white/10 transition-all duration-300 group-hover:bg-white/[0.08] group-hover:ring-white/20">
+            <Image
+              src={logoImage}
+              alt="CodeMentor AI"
+              width={40}
+              height={40}
+              priority
+              unoptimized
+              className="h-10 w-10 object-contain transition-transform duration-300 group-hover:scale-110"
+            />
           </div>
           <span className="text-xl font-semibold tracking-tight text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.2)] transition-all duration-300 group-hover:drop-shadow-[0_0_12px_rgba(255,255,255,0.4)]">
             CodeMentor AI

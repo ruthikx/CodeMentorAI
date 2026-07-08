@@ -1,11 +1,25 @@
 "use client";
 
 import { useMutation, useQuery } from "@tanstack/react-query";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Code2,
+  Copy,
+  Download,
+  GitPullRequest,
+  MessageSquare,
+  RefreshCw,
+  Sparkles,
+  Terminal,
+  type LucideIcon
+} from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { apiFetch } from "../lib/api";
 import { applyAcceptedFixes, type AppliedFixResult, type ReviewDetail, type ReviewIssue } from "../lib/review";
 import { streamReviewIssues } from "../lib/review-stream";
 import { IssueCard } from "./issue-card";
+import { Spotlight } from "./ui/spotlight";
 
 type IssueDecision = "accepted" | "rejected";
 
@@ -226,120 +240,185 @@ export function ReviewStreamClient({ reviewId }: { reviewId: string }) {
   };
 
   return (
-    <div className="min-h-screen bg-[linear-gradient(180deg,_#09111f_0%,_#101c30_100%)] px-6 py-10 lg:px-10">
-      <div className="mx-auto max-w-7xl space-y-8">
-        <header className="space-y-4">
-          <p className="text-sm uppercase tracking-[0.32em] text-signal.mint">Streaming Review</p>
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-            <div className="space-y-2">
-              <h1 className="text-4xl font-semibold text-white">
+    <div className="relative min-h-screen overflow-hidden bg-[#050505] px-6 py-12 font-sans text-white selection:bg-blue-500/30 lg:px-10">
+      <div className="pointer-events-none absolute left-1/4 top-24 h-[520px] w-[520px] rounded-full bg-gradient-to-br from-blue-600/20 to-purple-600/10 blur-[120px]" />
+      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,#4f4f4f14_1px,transparent_1px),linear-gradient(to_bottom,#4f4f4f14_1px,transparent_1px)] bg-[size:24px_24px] [mask-image:radial-gradient(ellipse_70%_45%_at_50%_0%,#000_55%,transparent_100%)]" />
+
+      <main className="relative z-10 mx-auto flex max-w-[1400px] flex-col gap-8">
+        <header className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_440px] lg:items-end">
+          <div className="flex min-w-0 flex-col items-start gap-5">
+            <div className="inline-flex items-center gap-2 rounded-full border border-white/[0.08] bg-gradient-to-r from-white/[0.08] to-white/[0.02] px-3 py-1.5 text-sm font-medium text-neutral-300 shadow-[0_0_15px_rgba(255,255,255,0.03)] backdrop-blur-md">
+              <span className="h-2 w-2 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.8)]" />
+              Streaming Review
+            </div>
+            <div className="space-y-4">
+              <h1 className="max-w-4xl bg-gradient-to-b from-white to-neutral-500 bg-clip-text text-[2.5rem] font-bold leading-[1.08] tracking-normal text-transparent sm:text-5xl lg:text-6xl">
                 {reviewQuery.data.submission.filename ?? "Untitled submission"}
               </h1>
-              <p className="text-sm text-slate-300">
-                {reviewQuery.data.submission.language} - status: {status}
+              <p className="max-w-2xl text-base leading-7 text-neutral-400 sm:text-lg">
+                {reviewQuery.data.submission.language} review - {status}
               </p>
             </div>
-            <a
-              className="inline-flex rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm text-slate-100 transition hover:bg-white/10"
-              href={`/review/${reviewId}/chat`}
-            >
-              Open Review Chat
-            </a>
+          </div>
+
+          <div className="grid gap-3 rounded-3xl border border-white/10 bg-white/[0.03] p-4 shadow-2xl backdrop-blur-md sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
+            <ReviewStat icon={Code2} label="Issues" value={String(orderedIssues.length)} />
+            <ReviewStat icon={CheckCircle2} label="Accepted" value={String(acceptedIssueCount)} />
+            <ReviewStat icon={Sparkles} label="Open" value={String(undecidedIssueCount)} />
           </div>
         </header>
 
-        <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 text-sm leading-7 text-slate-300">
-          {streamError
-            ? "The SSE connection is no longer live, but saved issues can still be fetched from the review API."
-            : status === "processing"
-            ? "The SSE stream is active. Issues will appear as soon as the model completes each structured JSON object."
-            : status === "failed"
-              ? "The review failed before completion."
-              : "The review stream is complete."}
-        </section>
+        <section className="relative overflow-hidden rounded-[2.5rem] border border-white/10 bg-[#070707] shadow-2xl">
+          <Spotlight className="-top-40 left-0 md:-top-20 md:left-60" fill="white" />
+          <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,#4f4f4f1a_1px,transparent_1px),linear-gradient(to_bottom,#4f4f4f1a_1px,transparent_1px)] bg-[size:24px_24px] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)]" />
 
-        {streamError ? (
-          <section className="flex flex-col gap-4 rounded-3xl border border-signal.yellow/30 bg-signal.yellow/10 p-5 text-sm text-slate-100 md:flex-row md:items-center md:justify-between">
-            <p className="leading-7">{streamError}</p>
-            <button
-              type="button"
-              onClick={() => {
-                void reviewQuery.refetch();
-              }}
-              disabled={reviewQuery.isFetching}
-              className="rounded-full border border-signal.yellow/40 bg-signal.yellow/15 px-5 py-3 font-medium text-signal.yellow transition hover:bg-signal.yellow/25 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {reviewQuery.isFetching ? "Fetching Issues..." : "Fetch Saved Issues"}
-            </button>
-          </section>
-        ) : null}
-
-        {actionError ? (
-          <section className="rounded-3xl border border-signal.red/30 bg-signal.red/10 p-5 text-sm text-slate-100">
-            Could not update this issue: {actionError}
-          </section>
-        ) : null}
-
-        {reviewQuery.data.submission.githubPrId ? (
-          <GitHubReviewActions
-            repoLabel={reviewQuery.data.submission.filename ?? "GitHub pull request"}
-            prNumber={reviewQuery.data.submission.githubPrId}
-            status={status}
-            isCommenting={postGitHubComment.isPending}
-            isMerging={mergeGitHubPullRequest.isPending}
-            message={githubActionMessage}
-            onComment={() => postGitHubComment.mutate()}
-            onMerge={() => mergeGitHubPullRequest.mutate()}
-          />
-        ) : null}
-
-        <div role="listbox" aria-label="Review issues" className="grid gap-5" onKeyDown={handleNavigation}>
-          {orderedIssues.map((issue, index) => (
-            <div
-              key={issue.id}
-              ref={(node) => {
-                issueRefs.current[index] = node;
-              }}
-              tabIndex={-1}
-            >
-              <IssueCard
-                issue={issue}
-                sourceCode={reviewQuery.data.submission.sourceCode}
-                language={reviewQuery.data.submission.language}
-                active={index === activeIndex}
-                isSaving={patchIssue.isPending && patchIssue.variables?.issueId === issue.id}
-                decision={decisions[issue.id]}
-                onFocus={() => setActiveIndex(index)}
-                onAccept={(accepted) => patchIssue.mutate({ issueId: issue.id, accepted })}
-              />
+          <div className="relative z-10">
+            <div className="flex flex-col gap-4 border-b border-white/10 bg-[#0d0d0f] px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+              <div className="flex min-w-0 items-center gap-3">
+                <div className="flex gap-1.5">
+                  <span className="h-3 w-3 rounded-full bg-red-500/80" />
+                  <span className="h-3 w-3 rounded-full bg-yellow-500/80" />
+                  <span className="h-3 w-3 rounded-full bg-green-500/80" />
+                </div>
+                <span className="min-w-0 truncate font-mono text-xs text-neutral-400">
+                  review/{reviewId} - CodeMentor Stream
+                </span>
+              </div>
+              <a
+                className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-black shadow-[0_0_20px_rgba(255,255,255,0.12)] transition-all duration-300 hover:scale-[1.02] hover:bg-neutral-100 hover:shadow-[0_0_30px_rgba(255,255,255,0.22)] sm:w-auto"
+                href={`/review/${reviewId}/chat`}
+              >
+                <MessageSquare className="h-4 w-4 text-black" />
+                Open Review Chat
+              </a>
             </div>
-          ))}
-        </div>
 
-        {orderedIssues.length === 0 && status === "processing" ? (
-          <ReviewShell message="Waiting for the first issue to arrive..." />
-        ) : null}
+            <div className="space-y-6 p-5 lg:p-8">
+              <section className="flex flex-col gap-4 rounded-3xl border border-white/10 bg-white/[0.03] p-5 backdrop-blur-md md:flex-row md:items-center md:justify-between">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04]">
+                    <CheckCircle2 className="h-5 w-5 text-blue-400" />
+                  </div>
+                  <p className="text-sm leading-7 text-neutral-300">
+                    {streamError
+                      ? "The SSE connection is no longer live, but saved issues can still be fetched from the review API."
+                      : status === "processing"
+                      ? "The SSE stream is active. Issues will appear as soon as the model completes each structured JSON object."
+                      : status === "failed"
+                        ? "The review failed before completion."
+                        : "The review stream is complete."}
+                  </p>
+                </div>
+              </section>
 
-        {orderedIssues.length > 0 ? (
-          <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 text-sm text-slate-300">
-            {allIssuesDecided
-              ? acceptedIssueCount > 0
-                ? "All issues have a decision. Generate the final corrected code from the accepted fixes."
-                : "All issues were rejected, so there is no corrected code to generate."
-              : `${undecidedIssueCount} ${undecidedIssueCount === 1 ? "issue still needs" : "issues still need"} Accept Fix or Reject before final code is generated.`}
-          </section>
-        ) : null}
+              {streamError ? (
+                <section className="flex flex-col gap-4 rounded-3xl border border-yellow-500/25 bg-yellow-500/10 p-5 text-sm text-neutral-100 md:flex-row md:items-center md:justify-between">
+                  <p className="leading-7">{streamError}</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void reviewQuery.refetch();
+                    }}
+                    disabled={reviewQuery.isFetching}
+                    className="inline-flex items-center justify-center gap-2 rounded-full border border-yellow-400/30 bg-yellow-400/10 px-5 py-3 font-medium text-yellow-300 transition hover:bg-yellow-400/15 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <RefreshCw className={`h-4 w-4 ${reviewQuery.isFetching ? "animate-spin" : ""}`} />
+                    {reviewQuery.isFetching ? "Fetching Issues..." : "Fetch Saved Issues"}
+                  </button>
+                </section>
+              ) : null}
 
-        {allIssuesDecided && acceptedIssueCount > 0 ? (
-          <FinalCodePanel
-            result={generatedCode}
-            filename={reviewQuery.data.submission.filename}
-            language={reviewQuery.data.submission.language}
-            isGenerating={generateFinalCode.isPending}
-            onGenerate={() => generateFinalCode.mutate()}
-          />
-        ) : null}
+              {actionError ? (
+                <section className="flex items-start gap-3 rounded-3xl border border-red-500/30 bg-red-500/10 p-5 text-sm text-red-100">
+                  <AlertTriangle className="mt-0.5 h-5 w-5 flex-shrink-0 text-red-300" />
+                  <span>Could not update this issue: {actionError}</span>
+                </section>
+              ) : null}
+
+              {reviewQuery.data.submission.githubPrId ? (
+                <GitHubReviewActions
+                  repoLabel={reviewQuery.data.submission.filename ?? "GitHub pull request"}
+                  prNumber={reviewQuery.data.submission.githubPrId}
+                  status={status}
+                  isCommenting={postGitHubComment.isPending}
+                  isMerging={mergeGitHubPullRequest.isPending}
+                  message={githubActionMessage}
+                  onComment={() => postGitHubComment.mutate()}
+                  onMerge={() => mergeGitHubPullRequest.mutate()}
+                />
+              ) : null}
+
+              <div role="listbox" aria-label="Review issues" className="grid gap-5" onKeyDown={handleNavigation}>
+                {orderedIssues.map((issue, index) => (
+                  <div
+                    key={issue.id}
+                    ref={(node) => {
+                      issueRefs.current[index] = node;
+                    }}
+                    tabIndex={-1}
+                  >
+                    <IssueCard
+                      issue={issue}
+                      sourceCode={reviewQuery.data.submission.sourceCode}
+                      language={reviewQuery.data.submission.language}
+                      active={index === activeIndex}
+                      isSaving={patchIssue.isPending && patchIssue.variables?.issueId === issue.id}
+                      decision={decisions[issue.id]}
+                      onFocus={() => setActiveIndex(index)}
+                      onAccept={(accepted) => patchIssue.mutate({ issueId: issue.id, accepted })}
+                    />
+                  </div>
+                ))}
+              </div>
+
+              {orderedIssues.length === 0 && status === "processing" ? (
+                <InlineReviewState message="Waiting for the first issue to arrive..." />
+              ) : null}
+
+              {orderedIssues.length > 0 ? (
+                <section className="rounded-3xl border border-white/10 bg-white/[0.03] p-5 text-sm text-neutral-300 backdrop-blur-md">
+                  {allIssuesDecided
+                    ? acceptedIssueCount > 0
+                      ? "All issues have a decision. Generate the final corrected code from the accepted fixes."
+                      : "All issues were rejected, so there is no corrected code to generate."
+                    : `${undecidedIssueCount} ${undecidedIssueCount === 1 ? "issue still needs" : "issues still need"} Accept Fix or Reject before final code is generated.`}
+                </section>
+              ) : null}
+
+              {allIssuesDecided && acceptedIssueCount > 0 ? (
+                <FinalCodePanel
+                  result={generatedCode}
+                  filename={reviewQuery.data.submission.filename}
+                  language={reviewQuery.data.submission.language}
+                  isGenerating={generateFinalCode.isPending}
+                  onGenerate={() => generateFinalCode.mutate()}
+                />
+              ) : null}
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+  );
+}
+
+function ReviewStat({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+      <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04]">
+        <Icon className="h-4 w-4 text-blue-400" />
       </div>
+      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-neutral-500">{label}</p>
+      <p className="mt-1 text-2xl font-bold text-white">{value}</p>
+    </div>
+  );
+}
+
+function InlineReviewState({ message }: { message: string }) {
+  return (
+    <div className="flex items-center gap-3 rounded-3xl border border-dashed border-white/15 bg-white/[0.03] p-5 text-sm text-neutral-400">
+      <Terminal className="h-5 w-5 flex-shrink-0 text-blue-400" />
+      <span>{message}</span>
     </div>
   );
 }
@@ -357,37 +436,43 @@ function GitHubReviewActions(props: {
   const disabled = props.status === "processing" || props.status === "pending";
 
   return (
-    <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-card">
+    <section className="rounded-3xl border border-white/10 bg-white/[0.03] p-5 shadow-2xl backdrop-blur-md">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div>
-          <p className="text-xs uppercase tracking-[0.28em] text-signal.mint">GitHub Pull Request</p>
-          <h2 className="mt-2 text-xl font-semibold text-white">{props.repoLabel}</h2>
-          <p className="mt-1 text-sm text-slate-300">PR #{props.prNumber}</p>
+        <div className="flex items-start gap-3">
+          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04]">
+            <GitPullRequest className="h-5 w-5 text-blue-400" />
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-neutral-500">GitHub Pull Request</p>
+            <h2 className="mt-2 text-xl font-semibold text-white">{props.repoLabel}</h2>
+            <p className="mt-1 text-sm text-neutral-400">PR #{props.prNumber}</p>
+          </div>
         </div>
         <div className="flex flex-col gap-3 sm:flex-row">
           <button
             type="button"
             onClick={props.onComment}
             disabled={disabled || props.isCommenting}
-            className="rounded-full border border-signal.mint/40 bg-signal.mint/10 px-5 py-3 text-sm font-medium text-signal.mint transition hover:bg-signal.mint/20 disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-medium text-white transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-50"
           >
+            <MessageSquare className="h-4 w-4" />
             {props.isCommenting ? "Adding Comment..." : "Add Review Comment"}
           </button>
           <button
             type="button"
             onClick={props.onMerge}
             disabled={disabled || props.isMerging}
-            className="rounded-full bg-paper px-5 py-3 text-sm font-medium text-ink transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-full bg-white px-5 py-3 text-sm font-semibold text-black shadow-[0_0_20px_rgba(255,255,255,0.12)] transition hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {props.isMerging ? "Merging..." : "Merge Pull Request"}
           </button>
         </div>
       </div>
       {disabled ? (
-        <p className="mt-4 text-sm text-slate-400">GitHub actions unlock when the review finishes.</p>
+        <p className="mt-4 text-sm text-neutral-500">GitHub actions unlock when the review finishes.</p>
       ) : null}
       {props.message ? (
-        <p className="mt-4 rounded-2xl border border-signal.mint/30 bg-signal.mint/10 px-4 py-3 text-sm text-signal.mint">
+        <p className="mt-4 rounded-2xl border border-blue-500/25 bg-blue-500/10 px-4 py-3 text-sm text-blue-200">
           {props.message}
         </p>
       ) : null}
@@ -460,24 +545,30 @@ function FinalCodePanel(props: {
   };
 
   return (
-    <section className="rounded-3xl border border-signal.mint/30 bg-[#0b1220] p-5 shadow-card">
+    <section className="rounded-[2rem] border border-white/10 bg-[#0b0b0c] p-5 shadow-2xl">
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-        <div>
-          <p className="text-xs uppercase tracking-[0.28em] text-signal.mint">Final Corrected Code</p>
-          <h2 className="mt-2 text-2xl font-semibold text-white">{downloadFilename}</h2>
-          <p className="mt-2 text-sm text-slate-300">
-            {result
-              ? `Generated from ${result.appliedCount} accepted ${result.appliedCount === 1 ? "fix" : "fixes"}.`
-              : "Ready to generate from accepted fixes."}
-          </p>
+        <div className="flex items-start gap-3">
+          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04]">
+            <Code2 className="h-5 w-5 text-blue-400" />
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-neutral-500">Final Corrected Code</p>
+            <h2 className="mt-2 text-2xl font-semibold text-white">{downloadFilename}</h2>
+            <p className="mt-2 text-sm text-neutral-400">
+              {result
+                ? `Generated from ${result.appliedCount} accepted ${result.appliedCount === 1 ? "fix" : "fixes"}.`
+                : "Ready to generate from accepted fixes."}
+            </p>
+          </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <button
             type="button"
             onClick={props.onGenerate}
             disabled={props.isGenerating}
-            className="rounded-full border border-signal.mint/40 bg-signal.mint/10 px-4 py-2 text-sm font-medium text-signal.mint transition hover:bg-signal.mint/20 disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex items-center justify-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-semibold text-black transition hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-60"
           >
+            <RefreshCw className={`h-4 w-4 text-black ${props.isGenerating ? "animate-spin" : ""}`} />
             {props.isGenerating ? "Generating..." : result ? "Regenerate" : "Generate Final Code"}
           </button>
           <button
@@ -486,35 +577,37 @@ function FinalCodePanel(props: {
               void copyCode();
             }}
             disabled={!result}
-            className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-slate-100 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-medium text-white transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-60"
           >
+            <Copy className="h-4 w-4" />
             {copied ? "Copied" : "Copy Code"}
           </button>
           <button
             type="button"
             onClick={downloadCode}
             disabled={!result}
-            className="rounded-full bg-paper px-4 py-2 text-sm font-medium text-ink transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-medium text-white transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-60"
           >
+            <Download className="h-4 w-4" />
             Download
           </button>
         </div>
       </div>
 
       {!result ? (
-        <div className="mt-5 rounded-2xl border border-white/10 bg-black/20 p-4 text-sm leading-6 text-slate-300">
+        <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-sm leading-6 text-neutral-400">
           This step asks the AI to produce a complete corrected file from the accepted issues, so fragmentary suggested fixes do not get pasted directly into the source.
         </div>
       ) : null}
 
       {result?.skippedIssues.length ? (
-        <div className="mt-4 rounded-2xl border border-signal.yellow/30 bg-signal.yellow/10 p-4 text-sm text-slate-100">
+        <div className="mt-4 rounded-2xl border border-yellow-500/25 bg-yellow-500/10 p-4 text-sm text-yellow-100">
           {result.skippedIssues.length} accepted {result.skippedIssues.length === 1 ? "fix was" : "fixes were"} skipped by the fallback line-based patcher because line ranges overlapped or no longer matched the source.
         </div>
       ) : null}
 
       {result ? (
-        <pre className="mt-5 max-h-[520px] overflow-auto rounded-2xl border border-white/10 bg-black/30 p-4 text-sm leading-6 text-slate-100">
+        <pre className="mt-5 max-h-[520px] overflow-auto rounded-2xl border border-white/10 bg-[#09090a] p-4 text-sm leading-6 text-neutral-200">
           <code className={`language-${props.language}`}>{result.code}</code>
         </pre>
       ) : null}
@@ -524,10 +617,14 @@ function FinalCodePanel(props: {
 
 function ReviewShell({ message }: { message: string }) {
   return (
-    <div className="min-h-screen bg-[linear-gradient(180deg,_#09111f_0%,_#101c30_100%)] px-6 py-10 lg:px-10">
-      <div className="mx-auto max-w-4xl rounded-3xl border border-white/10 bg-white/[0.04] p-6 text-sm text-slate-300">
-        {message}
-      </div>
+    <div className="relative min-h-screen overflow-hidden bg-[#050505] px-6 py-12 font-sans text-white selection:bg-blue-500/30 lg:px-10">
+      <div className="pointer-events-none absolute left-1/4 top-24 h-[520px] w-[520px] rounded-full bg-gradient-to-br from-blue-600/20 to-purple-600/10 blur-[120px]" />
+      <main className="relative z-10 mx-auto max-w-[1400px]">
+        <div className="flex items-center gap-3 rounded-3xl border border-white/10 bg-white/[0.03] p-6 text-sm text-neutral-300 shadow-2xl backdrop-blur-md">
+          <Sparkles className="h-5 w-5 flex-shrink-0 text-blue-400" />
+          <span>{message}</span>
+        </div>
+      </main>
     </div>
   );
 }

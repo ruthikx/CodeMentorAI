@@ -177,13 +177,13 @@ function scoreLanguage(sourceCode: string, rules: Array<[RegExp, number]>): numb
 export function getSeverityMeta(severity: ReviewSeverity) {
   switch (severity) {
     case "style":
-      return { label: "Style", icon: "i", colorClass: "text-signal.blue", surfaceClass: "bg-signal.blue/15 ring-signal.blue/35" };
+      return { label: "Style", icon: "i", colorClass: "text-blue-300", surfaceClass: "bg-blue-500/10 ring-blue-500/30" };
     case "best_practice":
-      return { label: "Best Practice", icon: "!", colorClass: "text-signal.yellow", surfaceClass: "bg-signal.yellow/15 ring-signal.yellow/35" };
+      return { label: "Best Practice", icon: "!", colorClass: "text-yellow-300", surfaceClass: "bg-yellow-500/10 ring-yellow-500/30" };
     case "logic":
-      return { label: "Logic Flaw", icon: "!!", colorClass: "text-signal.orange", surfaceClass: "bg-signal.orange/15 ring-signal.orange/35" };
+      return { label: "Logic Flaw", icon: "!!", colorClass: "text-orange-300", surfaceClass: "bg-orange-500/10 ring-orange-500/30" };
     case "security":
-      return { label: "Security", icon: "S", colorClass: "text-signal.red", surfaceClass: "bg-signal.red/15 ring-signal.red/35" };
+      return { label: "Security", icon: "S", colorClass: "text-red-300", surfaceClass: "bg-red-500/10 ring-red-500/30" };
   }
 }
 
