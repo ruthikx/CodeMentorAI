@@ -3,7 +3,7 @@ import { RepoReviewPanel } from "../../src/components/repo-review-panel";
 export default function RepoReviewPage() {
   return (
     <main className="min-h-screen overflow-hidden bg-[#050505] text-white selection:bg-blue-500/30">
-      <section className="relative border-t border-white/5 bg-gradient-to-b from-[#050505] to-[#08080a] py-20 lg:py-28">
+      <section className="relative border-t border-white/5 bg-gradient-to-b from-[#050505] to-[#08080a] py-10 lg:py-18">
         <div className="pointer-events-none absolute left-1/4 top-24 h-[500px] w-[500px] rounded-full bg-gradient-to-br from-blue-600/20 to-purple-600/10 blur-[120px]" />
         <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,#4f4f4f14_1px,transparent_1px),linear-gradient(to_bottom,#4f4f4f14_1px,transparent_1px)] bg-[size:32px_32px] [mask-image:radial-gradient(ellipse_60%_45%_at_50%_0%,#000_65%,transparent_100%)]" />
 
