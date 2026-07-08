@@ -1,6 +1,20 @@
 "use client";
 
 import { useMutation } from "@tanstack/react-query";
+import {
+  AlertTriangle,
+  Check,
+  CheckCircle,
+  Download,
+  FileArchive,
+  FileCode2,
+  Github,
+  Loader2,
+  Play,
+  Sparkles,
+  Terminal,
+  Upload
+} from "lucide-react";
 import { useState } from "react";
 import { apiFetch } from "../lib/api";
 import type { RepoReviewCorrectedFile, RepoReviewReport, RepoReviewSeverity } from "../lib/repo-review";
@@ -54,19 +68,24 @@ export function RepoReviewPanel() {
   const activeError = source === "github" ? reviewRepo.error : reviewZip.error;
 
   return (
-    <section className="rounded-lg border border-white/10 bg-white/[0.04] p-5 shadow-card">
-      <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
-        <div className="space-y-5">
-          <div className="space-y-2">
-            <p className="text-xs uppercase tracking-[0.24em] text-signal-mint">Repository Review</p>
-            <h2 className="text-2xl font-semibold text-white">Review a repo or uploaded project</h2>
-            <p className="text-sm leading-7 text-slate-300">
+    <section className="relative overflow-hidden rounded-[2.5rem] border border-white/10 bg-[#070707] p-4 shadow-2xl lg:p-8">
+      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,#4f4f4f1a_1px,transparent_1px),linear-gradient(to_bottom,#4f4f4f1a_1px,transparent_1px)] bg-[size:24px_24px] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)]" />
+
+      <div className="relative z-10 grid gap-8 lg:grid-cols-12">
+        <div className="flex flex-col gap-6 rounded-3xl border border-white/5 bg-white/[0.01] p-6 shadow-xl backdrop-blur-xl lg:col-span-5 lg:p-8">
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 text-sm font-semibold text-blue-400">
+              <Sparkles className="h-4 w-4" />
+              Repository Review
+            </div>
+            <h2 className="text-2xl font-bold tracking-tight text-white">Review a repo or uploaded project</h2>
+            <p className="text-sm leading-7 text-neutral-400">
               Submit a public repository URL or upload a project zip. The API filters noisy files and reviews static excerpts only.
             </p>
           </div>
 
           <form
-            className="space-y-4"
+            className="flex flex-col gap-5"
             onSubmit={(event) => {
               event.preventDefault();
               if (source === "github") {
@@ -77,59 +96,71 @@ export function RepoReviewPanel() {
               reviewZip.mutate();
             }}
           >
-            <div className="grid grid-cols-2 gap-2 rounded-lg border border-white/10 bg-[#0b1220] p-1">
+            <div className="grid grid-cols-2 gap-2 rounded-xl border border-white/10 bg-black p-1">
               <button
                 type="button"
                 onClick={() => setSource("github")}
-                className={`rounded-md px-3 py-2 text-sm font-medium transition ${
+                className={`flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium transition ${
                   source === "github"
-                    ? "bg-paper text-ink"
-                    : "text-slate-300 hover:bg-white/10"
+                    ? "bg-white text-black shadow-[0_0_20px_rgba(255,255,255,0.12)]"
+                    : "text-neutral-300 hover:bg-white/10 hover:text-white"
                 }`}
                 disabled={isPending}
               >
+                <Github className="h-4 w-4" />
                 GitHub URL
               </button>
               <button
                 type="button"
                 onClick={() => setSource("zip")}
-                className={`rounded-md px-3 py-2 text-sm font-medium transition ${
+                className={`flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium transition ${
                   source === "zip"
-                    ? "bg-paper text-ink"
-                    : "text-slate-300 hover:bg-white/10"
+                    ? "bg-white text-black shadow-[0_0_20px_rgba(255,255,255,0.12)]"
+                    : "text-neutral-300 hover:bg-white/10 hover:text-white"
                 }`}
                 disabled={isPending}
               >
+                <Upload className="h-4 w-4" />
                 Upload Zip
               </button>
             </div>
 
             {source === "github" ? (
-              <label className="block space-y-2 text-sm text-slate-300">
-                <span>Repository URL</span>
-                <input
-                  value={repoUrl}
-                  onChange={(event) => setRepoUrl(event.target.value)}
-                  className="w-full rounded-lg border border-white/10 bg-[#0b1220] px-4 py-3 text-white outline-none transition placeholder:text-slate-500 focus:border-signal-mint"
-                  placeholder="https://github.com/owner/repo"
-                  disabled={isPending}
-                />
+              <label className="block space-y-2 text-sm text-neutral-300">
+                <span className="flex items-center gap-2 font-medium">
+                  <Github className="h-4 w-4 text-neutral-500" />
+                  GitHub Repository Link
+                </span>
+                <div className="relative">
+                  <input
+                    value={repoUrl}
+                    onChange={(event) => setRepoUrl(event.target.value)}
+                    className="w-full rounded-xl border border-white/5 bg-black px-4 py-3 text-sm text-white outline-none transition placeholder:text-neutral-600 hover:border-white/10 focus:border-blue-500/50"
+                    placeholder="https://github.com/owner/repo"
+                    disabled={isPending}
+                  />
+                </div>
               </label>
             ) : (
-              <label className="block space-y-2 text-sm text-slate-300">
-                <span>Project zip</span>
-                <input
-                  type="file"
-                  accept=".zip,application/zip,application/x-zip-compressed"
-                  onChange={(event) => setProjectZip(event.target.files?.[0] ?? null)}
-                  className="w-full rounded-lg border border-white/10 bg-[#0b1220] px-4 py-3 text-sm text-slate-300 outline-none transition file:mr-4 file:rounded-md file:border-0 file:bg-paper file:px-3 file:py-2 file:text-sm file:font-medium file:text-ink hover:file:bg-white focus:border-signal-mint"
-                  disabled={isPending}
-                />
+              <label className="block space-y-2 text-sm text-neutral-300">
+                <span className="flex items-center gap-2 font-medium">
+                  <FileArchive className="h-4 w-4 text-neutral-500" />
+                  Project Zip
+                </span>
+                <div className="rounded-xl border border-dashed border-white/10 bg-black/60 p-4 transition hover:border-blue-500/30 hover:bg-black">
+                  <input
+                    type="file"
+                    accept=".zip,application/zip,application/x-zip-compressed"
+                    onChange={(event) => setProjectZip(event.target.files?.[0] ?? null)}
+                    className="w-full text-sm text-neutral-300 outline-none file:mr-4 file:rounded-lg file:border-0 file:bg-white file:px-3 file:py-2 file:text-sm file:font-medium file:text-black hover:file:bg-neutral-100"
+                    disabled={isPending}
+                  />
+                </div>
               </label>
             )}
 
             <div className="space-y-2">
-              <p className="text-sm text-slate-300">Focus</p>
+              <p className="text-sm font-medium text-neutral-300">Focus</p>
               <div className="flex flex-wrap gap-2">
                 {FOCUS_OPTIONS.map((focus) => {
                   const active = selectedFocus.includes(focus);
@@ -139,10 +170,10 @@ export function RepoReviewPanel() {
                       key={focus}
                       type="button"
                       onClick={() => toggleFocus(focus, selectedFocus, setSelectedFocus)}
-                      className={`rounded-lg border px-3 py-2 text-sm transition ${
+                      className={`rounded-xl border px-3 py-2 text-sm capitalize transition ${
                         active
-                          ? "border-signal-mint bg-signal-mint/15 text-signal-mint"
-                          : "border-white/10 bg-[#0b1220] text-slate-300 hover:border-white/25"
+                          ? "border-blue-500/40 bg-blue-500/10 text-blue-300 shadow-[0_0_18px_rgba(59,130,246,0.08)]"
+                          : "border-white/10 bg-black text-neutral-300 hover:border-white/25 hover:bg-white/5"
                       }`}
                       disabled={isPending}
                     >
@@ -153,12 +184,12 @@ export function RepoReviewPanel() {
               </div>
             </div>
 
-            <label className="block space-y-2 text-sm text-slate-300">
-              <span>Optional notes</span>
+            <label className="block space-y-2 text-sm text-neutral-300">
+              <span className="font-medium">Optional Notes</span>
               <textarea
                 value={customFocus}
                 onChange={(event) => setCustomFocus(event.target.value)}
-                className="min-h-24 w-full resize-y rounded-lg border border-white/10 bg-[#0b1220] px-4 py-3 text-white outline-none transition placeholder:text-slate-500 focus:border-signal-mint"
+                className="min-h-24 w-full resize-y rounded-xl border border-white/5 bg-black px-4 py-3 text-sm text-white outline-none transition placeholder:text-neutral-600 hover:border-white/10 focus:border-blue-500/50"
                 placeholder="Prioritize auth, data validation, or test coverage."
                 maxLength={500}
                 disabled={isPending}
@@ -168,30 +199,42 @@ export function RepoReviewPanel() {
             <button
               type="submit"
               disabled={isPending || (source === "github" ? repoUrl.trim().length === 0 : !projectZip)}
-              className="w-full rounded-lg bg-paper px-5 py-3 font-medium text-ink transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-white px-5 py-3.5 text-sm font-semibold text-black shadow-[0_0_20px_rgba(255,255,255,0.1)] transition-all duration-300 hover:bg-neutral-200 hover:shadow-[0_0_30px_rgba(255,255,255,0.18)] disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {isPending
-                ? "Reviewing Project..."
-                : source === "github"
-                  ? "Review GitHub Repo"
-                  : "Review Uploaded Zip"}
+              {isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Reviewing Project...
+                </>
+              ) : (
+                <>
+                  <Play className="h-4 w-4" />
+                  {source === "github" ? "Review GitHub Repo" : "Review Uploaded Zip"}
+                </>
+              )}
             </button>
           </form>
 
           {isPending ? (
-            <div className="rounded-lg border border-signal-mint/30 bg-signal-mint/10 px-4 py-3 text-sm text-signal-mint">
-              Selecting source files, generating the review report, and preparing downloadable fixes.
+            <div className="rounded-xl border border-blue-500/20 bg-blue-500/10 px-4 py-3 text-sm text-blue-300">
+              <div className="flex items-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Selecting source files, generating the review report, and preparing downloadable fixes.
+              </div>
             </div>
           ) : null}
 
           {activeError ? (
-            <div className="rounded-lg border border-signal-red/30 bg-signal-red/10 px-4 py-3 text-sm text-signal-red">
-              {activeError.message}
+            <div className="rounded-xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>{activeError.message}</span>
+              </div>
             </div>
           ) : null}
         </div>
 
-        <div className="min-h-96 rounded-lg border border-white/10 bg-[#0b1220] p-5">
+        <div className="min-h-[520px] rounded-3xl border border-white/5 bg-white/[0.01] p-4 lg:col-span-7 lg:p-6">
           {latestReport ? <RepoReviewReportView report={latestReport} /> : <EmptyReportState />}
         </div>
       </div>
@@ -205,197 +248,240 @@ function RepoReviewReportView({ report }: { report: RepoReviewReport }) {
   const artifact = report.artifact;
 
   return (
-    <div className="space-y-5">
-      <div className="space-y-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="rounded-lg bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-slate-300">
-            {report.repo.defaultBranch}
-          </span>
-          <span className="rounded-lg bg-signal-mint/15 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-signal-mint">
-            {report.stats.filesScanned} files
-          </span>
+    <div className="overflow-hidden rounded-3xl border border-white/10 bg-[#0b0b0c] shadow-2xl">
+      <div className="flex flex-col gap-4 border-b border-white/10 bg-[#0d0d0f] px-5 py-5 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <h3 className="flex items-center gap-2 text-lg font-bold text-white">
+            <CheckCircle className="h-5 w-5 shrink-0 text-green-500" />
+            <span className="truncate">{report.repo.name}</span>
+          </h3>
+          <p className="mt-1 text-xs text-neutral-500">
+            Audited {report.stats.filesScanned} source files on {report.repo.defaultBranch}
+          </p>
         </div>
-        <h3 className="text-2xl font-semibold text-white">{report.repo.name}</h3>
-        <p className="text-sm leading-7 text-slate-300">{report.summary}</p>
-      </div>
 
-      {hasAggregatePatch || correctedFiles.length > 0 || artifact ? (
-        <div className="rounded-lg border border-signal-mint/30 bg-signal-mint/10 p-4">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-signal-mint">Fix Downloads</p>
-              <p className="mt-2 text-sm leading-6 text-slate-200">
-                Download a patch, corrected file snapshots, or the reviewed zip with validated fixes and a report included.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {artifact ? (
-                <button
-                  type="button"
-                  onClick={() => downloadBase64File(artifact.filename, artifact.base64, artifact.mimeType)}
-                  className="rounded-lg bg-paper px-3 py-2 text-sm font-medium text-ink transition hover:bg-white"
-                >
-                  Download Corrected Zip
-                </button>
-              ) : null}
-              <button
-                type="button"
-                onClick={() => downloadText(buildRepoDownloadName(report.repo.name, "repo-review.patch"), report.fixes?.patch ?? "")}
-                disabled={!hasAggregatePatch}
-                className="rounded-lg bg-paper px-3 py-2 text-sm font-medium text-ink transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Download Patch
-              </button>
-              {correctedFiles.length === 1 ? (
-                <button
-                  type="button"
-                  onClick={() => downloadCorrectedFile(correctedFiles[0], "corrected-")}
-                  className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm font-medium text-slate-100 transition hover:bg-white/10"
-                >
-                  Download File
-                </button>
-              ) : null}
-            </div>
-          </div>
-          {correctedFiles.length > 1 ? (
-            <div className="mt-3 flex flex-wrap gap-2">
-              {correctedFiles.map((file) => (
-                <button
-                  key={file.file}
-                  type="button"
-                  onClick={() => downloadCorrectedFile(file, "corrected-")}
-                  className="rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-xs text-slate-200 transition hover:bg-white/10"
-                >
-                  {file.file}
-                </button>
-              ))}
-            </div>
+        <div className="flex flex-wrap gap-2">
+          {artifact ? (
+            <button
+              type="button"
+              onClick={() => downloadBase64File(artifact.filename, artifact.base64, artifact.mimeType)}
+              className="inline-flex items-center gap-2 rounded-lg bg-white px-3 py-2 text-xs font-medium text-black transition hover:bg-neutral-200"
+            >
+              <Download className="h-3.5 w-3.5" />
+              Zip
+            </button>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => downloadText(buildRepoDownloadName(report.repo.name, "repo-review.patch"), report.fixes?.patch ?? "")}
+            disabled={!hasAggregatePatch}
+            className="inline-flex items-center gap-2 rounded-lg bg-white px-3 py-2 text-xs font-medium text-black transition hover:bg-neutral-200 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Download className="h-3.5 w-3.5" />
+            Patch
+          </button>
+          {correctedFiles.length === 1 ? (
+            <button
+              type="button"
+              onClick={() => downloadCorrectedFile(correctedFiles[0], "corrected-")}
+              className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium text-white transition hover:bg-white/10"
+            >
+              <FileCode2 className="h-3.5 w-3.5" />
+              File
+            </button>
           ) : null}
         </div>
-      ) : null}
-
-      {report.stats.languages.length > 0 ? (
-        <div className="flex flex-wrap gap-2">
-          {report.stats.languages.map((language) => (
-            <span key={language} className="rounded-lg border border-white/10 px-3 py-1 text-xs text-slate-300">
-              {language}
-            </span>
-          ))}
-        </div>
-      ) : null}
-
-      <div className="space-y-3">
-        <h4 className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">Findings</h4>
-        {report.findings.length > 0 ? (
-          report.findings.map((finding, index) => (
-            <article key={`${finding.file}:${finding.line ?? "repo"}:${finding.title}:${index}`} className="rounded-lg border border-white/10 bg-white/[0.03] p-4">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div className="space-y-2">
-                  <SeverityBadge severity={finding.severity} />
-                  <h5 className="text-lg font-semibold text-white">{finding.title}</h5>
-                </div>
-                <p className="shrink-0 rounded-lg bg-black/20 px-3 py-2 text-xs text-slate-300">
-                  {finding.file}
-                  {finding.line ? `:${finding.line}` : ""}
-                </p>
-              </div>
-              <p className="mt-3 text-sm leading-7 text-slate-300">{finding.description}</p>
-              <div className="mt-4 rounded-lg border border-white/10 bg-[#07101d] p-3">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Fix</p>
-                    <p className="mt-2 text-sm leading-7 text-slate-200">{finding.recommendation}</p>
-                  </div>
-                  {finding.fix ? (
-                    <div className="flex shrink-0 flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => downloadText(buildFindingDownloadName(finding.file, index, "patch"), finding.fix?.patch ?? "")}
-                        disabled={!finding.fix.patch}
-                        className="rounded-lg bg-paper px-3 py-2 text-xs font-medium text-ink transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        Patch
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (finding.fix?.correctedFile) {
-                            downloadCorrectedFile(finding.fix.correctedFile, "corrected-");
-                          }
-                        }}
-                        disabled={!finding.fix.correctedFile}
-                        className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium text-slate-100 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        File
-                      </button>
-                    </div>
-                  ) : null}
-                </div>
-                {finding.fix?.patch ? (
-                  <pre className="mt-3 max-h-72 overflow-auto rounded-lg border border-white/10 bg-black/30 p-3 text-xs leading-5 text-slate-200">
-                    <code>{finding.fix.patch}</code>
-                  </pre>
-                ) : (
-                  <p className="mt-3 rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-xs leading-5 text-slate-400">
-                    No safe downloadable patch was generated for this finding. The recommendation may need broader context, a dependency change, or a manual edit.
-                  </p>
-                )}
-              </div>
-            </article>
-          ))
-        ) : (
-          <p className="rounded-lg border border-white/10 bg-white/[0.03] p-4 text-sm text-slate-300">
-            No concrete findings were returned for the selected source excerpts.
-          </p>
-        )}
       </div>
 
-      {report.nextSteps.length > 0 ? (
-        <div className="space-y-3">
-          <h4 className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">Next Steps</h4>
-          <ul className="space-y-2">
-            {report.nextSteps.map((step, index) => (
-              <li key={`${step}:${index}`} className="rounded-lg border border-white/10 bg-white/[0.03] px-4 py-3 text-sm leading-6 text-slate-300">
-                {step}
-              </li>
-            ))}
-          </ul>
+      <div className="space-y-6 p-5">
+        <p className="text-sm leading-7 text-neutral-400">{report.summary}</p>
+
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          <div className="rounded-xl border border-white/5 bg-white/[0.01] p-4">
+            <span className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-neutral-500">Branch</span>
+            <span className="block truncate text-sm font-semibold text-white">{report.repo.defaultBranch}</span>
+          </div>
+          <div className="rounded-xl border border-white/5 bg-white/[0.01] p-4">
+            <span className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-neutral-500">Files Scanned</span>
+            <span className="text-sm font-semibold text-white">{report.stats.filesScanned} Files</span>
+          </div>
+          <div className="rounded-xl border border-white/5 bg-white/[0.01] p-4">
+            <span className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-neutral-500">Findings</span>
+            <span className="text-sm font-semibold text-red-400">{report.findings.length} Alerts</span>
+          </div>
+          <div className="rounded-xl border border-white/5 bg-white/[0.01] p-4">
+            <span className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-neutral-500">Languages</span>
+            <span className="block truncate text-sm font-semibold text-green-400">
+              {report.stats.languages.length > 0 ? report.stats.languages.join(", ") : "N/A"}
+            </span>
+          </div>
         </div>
-      ) : null}
+
+        {hasAggregatePatch || correctedFiles.length > 0 || artifact ? (
+          <div className="rounded-xl border border-green-500/20 bg-green-500/10 p-4">
+            <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.18em] text-green-400">
+              <Check className="h-3.5 w-3.5" />
+              Fix Downloads
+            </p>
+            <p className="mt-2 text-sm leading-6 text-neutral-300">
+              Download a patch, corrected file snapshots, or the reviewed zip with validated fixes and a report included.
+            </p>
+            {correctedFiles.length > 1 ? (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {correctedFiles.map((file) => (
+                  <button
+                    key={file.file}
+                    type="button"
+                    onClick={() => downloadCorrectedFile(file, "corrected-")}
+                    className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-neutral-200 transition hover:bg-white/10"
+                  >
+                    {file.file}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
+        <div className="space-y-4">
+          <span className="block text-xs font-bold uppercase tracking-wider text-neutral-400">
+            Scanned Findings & Recommendations
+          </span>
+          {report.findings.length > 0 ? (
+            report.findings.map((finding, index) => {
+              const tone = getSeverityTone(finding.severity);
+
+              return (
+                <article
+                  key={`${finding.file}:${finding.line ?? "repo"}:${finding.title}:${index}`}
+                  className={`rounded-xl border p-4 ${tone.cardClassName}`}
+                >
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0 space-y-2">
+                      <SeverityBadge severity={finding.severity} />
+                      <h5 className="text-base font-semibold text-white">{finding.title}</h5>
+                    </div>
+                    <p className="shrink-0 rounded-lg bg-black/30 px-3 py-2 font-mono text-xs text-neutral-300">
+                      {finding.file}
+                      {finding.line ? `:${finding.line}` : ""}
+                    </p>
+                  </div>
+                  <p className="mt-3 text-sm leading-7 text-neutral-400">{finding.description}</p>
+                  <div className="mt-4 rounded-xl border border-white/10 bg-black/30 p-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">Fix</p>
+                        <p className="mt-2 text-sm leading-7 text-neutral-200">{finding.recommendation}</p>
+                      </div>
+                      {finding.fix ? (
+                        <div className="flex shrink-0 flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => downloadText(buildFindingDownloadName(finding.file, index, "patch"), finding.fix?.patch ?? "")}
+                            disabled={!finding.fix.patch}
+                            className="rounded-lg bg-white px-3 py-2 text-xs font-medium text-black transition hover:bg-neutral-200 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            Patch
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (finding.fix?.correctedFile) {
+                                downloadCorrectedFile(finding.fix.correctedFile, "corrected-");
+                              }
+                            }}
+                            disabled={!finding.fix.correctedFile}
+                            className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            File
+                          </button>
+                        </div>
+                      ) : null}
+                    </div>
+                    {finding.fix?.patch ? (
+                      <pre className="mt-3 max-h-72 overflow-auto rounded-lg border border-white/10 bg-black/40 p-3 text-xs leading-5 text-neutral-200">
+                        <code>{finding.fix.patch}</code>
+                      </pre>
+                    ) : (
+                      <p className="mt-3 rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-xs leading-5 text-neutral-500">
+                        No safe downloadable patch was generated for this finding. The recommendation may need broader context, a dependency change, or a manual edit.
+                      </p>
+                    )}
+                  </div>
+                </article>
+              );
+            })
+          ) : (
+            <p className="rounded-xl border border-white/10 bg-white/[0.03] p-4 text-sm text-neutral-300">
+              No concrete findings were returned for the selected source excerpts.
+            </p>
+          )}
+        </div>
+
+        {report.nextSteps.length > 0 ? (
+          <div className="space-y-3">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-400">Next Steps</h4>
+            <ul className="space-y-2">
+              {report.nextSteps.map((step, index) => (
+                <li key={`${step}:${index}`} className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm leading-6 text-neutral-300">
+                  {step}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }
 
 function EmptyReportState() {
   return (
-    <div className="flex h-full min-h-80 flex-col justify-center gap-3 text-slate-300">
-      <p className="text-sm uppercase tracking-[0.24em] text-slate-500">No report yet</p>
-      <p className="max-w-lg text-sm leading-7">
-        The completed report will show repo stats, language signals, prioritized findings, file and line references, and next steps.
+    <div className="flex h-full min-h-[480px] flex-col items-center justify-center gap-4 rounded-3xl border border-white/5 bg-white/[0.01] p-10 text-center">
+      <Terminal className="h-12 w-12 text-neutral-700" />
+      <h3 className="text-xl font-semibold text-neutral-300">Live Report Preview</h3>
+      <p className="max-w-sm text-sm leading-7 text-neutral-500">
+        Submit your public link or zip project to trigger your real-time teaching feedback report.
       </p>
     </div>
   );
 }
 
 function SeverityBadge({ severity }: { severity: RepoReviewSeverity }) {
-  const meta = getSeverityMeta(severity);
+  const tone = getSeverityTone(severity);
   return (
-    <span className={`inline-flex rounded-lg px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] ${meta.className}`}>
-      {meta.label}
+    <span className={`inline-flex rounded px-2 py-0.5 text-xs font-bold uppercase ${tone.badgeClassName}`}>
+      {tone.label} Severity
     </span>
   );
 }
 
-function getSeverityMeta(severity: RepoReviewSeverity) {
+function getSeverityTone(severity: RepoReviewSeverity) {
   switch (severity) {
     case "critical":
-      return { label: "Critical", className: "bg-signal-red/20 text-signal-red" };
+      return {
+        label: "Critical",
+        badgeClassName: "border border-red-400/20 bg-red-400/10 text-red-400",
+        cardClassName: "border-red-500/10 bg-red-500/[0.02]"
+      };
     case "high":
-      return { label: "High", className: "bg-signal-orange/20 text-signal-orange" };
+      return {
+        label: "High",
+        badgeClassName: "border border-orange-400/20 bg-orange-400/10 text-orange-400",
+        cardClassName: "border-orange-500/10 bg-orange-500/[0.02]"
+      };
     case "medium":
-      return { label: "Medium", className: "bg-signal-yellow/20 text-signal-yellow" };
+      return {
+        label: "Medium",
+        badgeClassName: "border border-yellow-400/20 bg-yellow-400/10 text-yellow-400",
+        cardClassName: "border-yellow-500/10 bg-yellow-500/[0.02]"
+      };
     case "low":
-      return { label: "Low", className: "bg-signal-blue/20 text-signal-blue" };
+      return {
+        label: "Low",
+        badgeClassName: "border border-blue-400/20 bg-blue-400/10 text-blue-400",
+        cardClassName: "border-blue-500/10 bg-blue-500/[0.02]"
+      };
   }
 }
 
