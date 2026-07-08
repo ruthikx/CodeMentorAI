@@ -58,7 +58,7 @@ export function Footer() {
       </div>
 
       <div className="mx-auto flex max-w-[1400px] flex-col items-center justify-between gap-4 border-t border-white/5 px-6 py-8 text-xs text-neutral-600 md:flex-row">
-        <div>Built with love by Ruthik. Copyright 2026 CodeMentor AI. All rights reserved.</div>
+        <div>Built with 💗 by Ruthik. Copyright 2026 CodeMentor AI. All rights reserved.</div>
         <div className="flex gap-6">
           <Link className="transition-colors hover:text-white" href="/github">GitHub</Link>
           <Link className="transition-colors hover:text-white" href="/history">History</Link>

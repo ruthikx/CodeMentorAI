@@ -66,7 +66,7 @@ export function ReviewNewClient() {
                 className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none transition focus:border-signal.mint"
               >
                 {LANGUAGE_OPTIONS.map((option) => (
-                  <option key={option} value={option}>
+                  <option className="bg-[#1f2937] text-white hover:bg-emerald-500" key={option} value={option}>
                     {option}
                   </option>
                 ))}
