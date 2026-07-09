@@ -18,9 +18,17 @@ import type { ReviewSeverity } from "../lib/review";
 
 const SEVERITY_META: Record<ReviewSeverity, { label: string; color: string }> = {
   style: { label: "Style", color: "#3a8dff" },
-  best_practice: { label: "Best Practice", color: "#e6b422" },
-  logic: { label: "Logic", color: "#ef7f39" },
+  best_practice: { label: "Best Practice", color: "#a855f7" },
+  logic: { label: "Logic", color: "#f59e0b" },
   security: { label: "Security", color: "#d84f4f" }
+};
+
+const tooltipStyle = {
+  background: "#0b0b0c",
+  border: "1px solid rgba(255,255,255,0.12)",
+  borderRadius: 16,
+  boxShadow: "0 18px 60px rgba(0,0,0,0.28)",
+  color: "#f5f5f5"
 };
 
 const SEVERITY_ORDER: ReviewSeverity[] = ["style", "best_practice", "logic", "security"];
@@ -49,14 +57,14 @@ export function SeverityPieChartRenderer({
                 <Cell key={entry.severity} fill={SEVERITY_META[entry.severity].color} />
               ))}
             </Pie>
-            <Tooltip contentStyle={{ background: "#0b1220", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 8 }} />
+            <Tooltip contentStyle={tooltipStyle} />
           </PieChart>
         </ResponsiveContainer>
       </div>
       <div className="grid gap-3">
         {chartData.map((entry) => (
-          <div key={entry.severity} className="flex items-center justify-between rounded-lg bg-white/[0.04] px-4 py-3">
-            <span className="flex items-center gap-3 text-sm text-slate-200">
+          <div key={entry.severity} className="flex items-center justify-between rounded-2xl border border-white/5 bg-white/[0.03] px-4 py-3">
+            <span className="flex items-center gap-3 text-sm text-neutral-200">
               <span className="h-3 w-3 rounded-full" style={{ background: SEVERITY_META[entry.severity].color }} />
               {entry.name}
             </span>
@@ -81,17 +89,17 @@ export function GrowthLineChartRenderer({
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={data} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
           <CartesianGrid stroke="rgba(255,255,255,0.08)" vertical={false} />
-          <XAxis dataKey="date" stroke="#94a3b8" tickLine={false} axisLine={false} fontSize={12} />
+          <XAxis dataKey="date" stroke="#737373" tickLine={false} axisLine={false} fontSize={12} />
           <YAxis
-            stroke="#94a3b8"
+            stroke="#737373"
             tickLine={false}
             axisLine={false}
             allowDecimals={false}
             fontSize={12}
-            label={{ value: "Issue count", angle: -90, position: "insideLeft", fill: "#94a3b8" }}
+            label={{ value: "Issue count", angle: -90, position: "insideLeft", fill: "#737373" }}
           />
-          <Tooltip contentStyle={{ background: "#0b1220", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 8 }} />
-          <Line type="monotone" dataKey="issues" name="Issues" stroke="#7ad7bf" strokeWidth={3} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+          <Tooltip contentStyle={tooltipStyle} />
+          <Line type="monotone" dataKey="issues" name="Issues" stroke="#3b82f6" strokeWidth={3} dot={{ r: 3 }} activeDot={{ r: 5 }} />
         </LineChart>
       </ResponsiveContainer>
     </div>
@@ -111,10 +119,10 @@ export function CategoryBarChartRenderer({
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={data} layout="vertical" margin={{ top: 4, right: 12, bottom: 4, left: 20 }}>
           <CartesianGrid stroke="rgba(255,255,255,0.08)" horizontal={false} />
-          <XAxis type="number" stroke="#94a3b8" tickLine={false} axisLine={false} allowDecimals={false} fontSize={12} />
-          <YAxis type="category" dataKey="category" width={118} stroke="#cbd5e1" tickLine={false} axisLine={false} fontSize={12} />
-          <Tooltip contentStyle={{ background: "#0b1220", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 8 }} />
-          <Bar dataKey="count" name="Issues" fill="#7ad7bf" radius={[0, 6, 6, 0]} />
+          <XAxis type="number" stroke="#737373" tickLine={false} axisLine={false} allowDecimals={false} fontSize={12} />
+          <YAxis type="category" dataKey="category" width={118} stroke="#d4d4d4" tickLine={false} axisLine={false} fontSize={12} />
+          <Tooltip contentStyle={tooltipStyle} />
+          <Bar dataKey="count" name="Issues" fill="#3b82f6" radius={[0, 8, 8, 0]} />
         </BarChart>
       </ResponsiveContainer>
     </div>

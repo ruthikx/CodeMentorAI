@@ -26,11 +26,11 @@ type CategoryBarChartProps = {
 
 function ChartSkeleton({ heightClass = "h-72 min-h-72" }: { heightClass?: string }) {
   return (
-    <div className={`${heightClass} rounded-lg border border-white/10 bg-[#0b1220] p-4`} aria-label="Loading chart">
+    <div className={`${heightClass} rounded-3xl border border-white/10 bg-[#0b0b0c] p-4`} aria-label="Loading chart">
       <div className="flex h-full items-end gap-3">
         {[42, 68, 54, 82, 38, 74, 58, 46].map((height, index) => (
           <div key={index} className="flex flex-1 items-end">
-            <div className="w-full rounded-t bg-slate-700/70" style={{ height: `${height}%` }} />
+            <div className="w-full rounded-t bg-white/10" style={{ height: `${height}%` }} />
           </div>
         ))}
       </div>
