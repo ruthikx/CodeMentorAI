@@ -4,6 +4,7 @@ import { signIn } from "next-auth/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
+import { resolveAppRedirectUrl } from "../lib/redirect";
 
 export function SignupForm({ callbackUrl = "/dashboard" }: { callbackUrl?: string }) {
   const router = useRouter();
@@ -47,8 +48,7 @@ export function SignupForm({ callbackUrl = "/dashboard" }: { callbackUrl?: strin
       return;
     }
 
-    router.push(result?.url ?? callbackUrl);
-    router.refresh();
+    window.location.assign(resolveAppRedirectUrl(result?.url, callbackUrl, window.location.origin));
   }
 
   return (

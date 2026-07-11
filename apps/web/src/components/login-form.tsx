@@ -2,11 +2,10 @@
 
 import { signIn } from "next-auth/react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
+import { resolveAppRedirectUrl } from "../lib/redirect";
 
 export function LoginForm({ callbackUrl = "/dashboard" }: { callbackUrl?: string }) {
-  const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -33,8 +32,7 @@ export function LoginForm({ callbackUrl = "/dashboard" }: { callbackUrl?: string
       return;
     }
 
-    router.push(result?.url ?? callbackUrl);
-    router.refresh();
+    window.location.assign(resolveAppRedirectUrl(result?.url, callbackUrl, window.location.origin));
   }
 
   return (
