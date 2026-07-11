@@ -4,14 +4,31 @@
   "version": "0.0.0",
   "type": "module",
   "exports": {
-    "./provider": "./provider.ts",
-    "./prompts": "./prompts.ts",
-    "./parser": "./parser.ts",
-    "./fallback": "./fallback.ts"
+    "./provider": {
+      "types": "./dist/provider.d.ts",
+      "import": "./dist/provider.js",
+      "default": "./dist/provider.js"
+    },
+    "./prompts": {
+      "types": "./dist/prompts.d.ts",
+      "import": "./dist/prompts.js",
+      "default": "./dist/prompts.js"
+    },
+    "./parser": {
+      "types": "./dist/parser.d.ts",
+      "import": "./dist/parser.js",
+      "default": "./dist/parser.js"
+    },
+    "./fallback": {
+      "types": "./dist/fallback.d.ts",
+      "import": "./dist/fallback.js",
+      "default": "./dist/fallback.js"
+    }
   },
   "scripts": {
-    "lint": "tsc --noEmit --allowImportingTsExtensions --module NodeNext --moduleResolution NodeNext --target ES2022 --strict --skipLibCheck parser.ts fallback.ts provider.ts prompts.ts tests/eval.ts",
-    "typecheck": "tsc --noEmit --allowImportingTsExtensions --module NodeNext --moduleResolution NodeNext --target ES2022 --strict --skipLibCheck parser.ts fallback.ts provider.ts prompts.ts tests/eval.ts",
+    "build": "tsc -p tsconfig.json",
+    "lint": "tsc --noEmit -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "jest --config jest.config.cjs",
     "eval": "tsx tests/eval.ts"
   },
@@ -21,7 +38,6 @@
   "devDependencies": {
     "@types/jest": "^30.0.0",
     "@types/node": "^22.7.4",
-    "tsx": "^4.19.1",
     "tsx": "^4.21.0",
     "typescript": "^5.6.2"
   }
