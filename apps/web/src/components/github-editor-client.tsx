@@ -1,6 +1,16 @@
 "use client";
 
 import { useMutation, useQuery } from "@tanstack/react-query";
+import {
+  ArrowRight,
+  Code2,
+  FolderGit2,
+  GitPullRequest,
+  Github,
+  Loader2,
+  LockKeyhole,
+  Sparkles
+} from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -47,99 +57,188 @@ export function GitHubEditorClient() {
   const canStartGitHubReview = Boolean(repoId) && Number.isInteger(parsedPrNumber) && parsedPrNumber > 0;
 
   return (
-    <main className="min-h-screen bg-[linear-gradient(180deg,_#09111f_0%,_#101c30_100%)] px-6 py-10 lg:px-10">
-      <div className="mx-auto max-w-6xl space-y-8">
-        <header className="max-w-3xl space-y-3">
-          <p className="text-sm uppercase tracking-[0.32em] text-signal.mint">GitHub + Web Editor</p>
-          <h1 className="text-4xl font-semibold text-white">Review code from a pull request or the browser editor.</h1>
-          <p className="text-sm leading-7 text-slate-300">
-            Select an updated GitHub repository and PR number, or jump into the Monaco editor for pasted code.
-          </p>
+    <div className="relative min-h-screen overflow-hidden bg-[#050505] px-6 py-10 font-sans text-white lg:px-10 lg:py-12">
+      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,#4f4f4f14_1px,transparent_1px),linear-gradient(to_bottom,#4f4f4f14_1px,transparent_1px)] bg-[size:24px_24px] [mask-image:linear-gradient(to_bottom,#000_0%,transparent_72%)]" />
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-80 bg-[radial-gradient(ellipse_at_top,rgba(59,130,246,0.14),transparent_68%)]" />
+
+      <main className="relative z-10 mx-auto flex max-w-[1400px] flex-col gap-10">
+        <header className="grid gap-8 border-b border-white/5 pb-10 lg:grid-cols-[minmax(0,1fr)_380px] lg:items-end">
+          <div className="max-w-4xl space-y-5">
+            <div className="inline-flex items-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.04] px-3 py-1.5 text-sm font-medium text-neutral-300 backdrop-blur-md">
+              <Github className="h-4 w-4 text-blue-400" />
+              GitHub Workspace
+            </div>
+            <div className="space-y-4">
+              <h1 className="bg-gradient-to-b from-white to-neutral-500 bg-clip-text text-[2.75rem] font-bold leading-[1.08] tracking-normal text-transparent sm:text-6xl">
+                Start a review from the right source.
+              </h1>
+              <p className="max-w-3xl text-base leading-7 text-neutral-400 sm:text-lg sm:leading-relaxed">
+                Review a pull request from a connected repository or move into the browser editor for pasted code. Both paths use the same live review workflow.
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-white/10 bg-white/10">
+            <div className="bg-[#0b0b0c] p-5">
+              <GitPullRequest className="h-5 w-5 text-blue-400" />
+              <p className="mt-5 text-2xl font-semibold text-white">PR</p>
+              <p className="mt-1 text-xs uppercase tracking-[0.18em] text-neutral-500">Connected repo</p>
+            </div>
+            <div className="bg-[#0b0b0c] p-5">
+              <Code2 className="h-5 w-5 text-emerald-400" />
+              <p className="mt-5 text-2xl font-semibold text-white">Editor</p>
+              <p className="mt-1 text-xs uppercase tracking-[0.18em] text-neutral-500">Pasted code</p>
+            </div>
+          </div>
         </header>
 
-        <div className="grid gap-5 lg:grid-cols-[1.4fr_1fr]">
-          <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-6 shadow-card">
-            <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h2 className="text-xl font-medium text-white">GitHub PR Review</h2>
-                <p className="mt-1 text-sm text-slate-300">Queue a review from a connected GitHub repository.</p>
+        <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
+          <section className="overflow-hidden rounded-3xl border border-white/10 bg-[#080809] shadow-2xl">
+            <div className="flex flex-col gap-4 border-b border-white/10 bg-[#0d0d0f] px-5 py-5 sm:flex-row sm:items-start sm:justify-between lg:px-6">
+              <div className="flex items-start gap-4">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04]">
+                  <GitPullRequest className="h-5 w-5 text-blue-400" />
+                </div>
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500">GitHub Pull Request</p>
+                  <h2 className="mt-2 text-2xl font-semibold text-white">Queue a connected PR</h2>
+                  <p className="mt-2 text-sm leading-6 text-neutral-400">
+                    Choose a repository and enter the pull request number to begin.
+                  </p>
+                </div>
               </div>
               {reposQuery.isFetching ? (
-                <span className="text-sm text-slate-400">Loading repos...</span>
+                <span className="inline-flex items-center gap-2 text-xs font-medium text-neutral-500">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  Syncing repos
+                </span>
               ) : null}
             </div>
 
-            <div className="grid gap-4">
-              <label className="space-y-2 text-sm text-slate-300">
-                <span>Repository</span>
-                <select
-                  value={repoId}
-                  onChange={(event) => setRepoId(event.target.value)}
-                  disabled={reposQuery.isLoading || repos.length === 0}
-                  className="w-full rounded-2xl border border-white/10 bg-[#0d1524] px-4 py-3 text-white outline-none transition focus:border-signal.mint disabled:cursor-not-allowed disabled:opacity-60"
+            <div className="space-y-5 p-5 lg:p-6">
+              <div className="grid gap-5">
+                <label className="space-y-2 text-sm text-neutral-300">
+                  <span className="flex items-center gap-2 font-medium text-white">
+                    <FolderGit2 className="h-4 w-4 text-neutral-500" />
+                    Repository
+                  </span>
+                  <select
+                    value={repoId}
+                    onChange={(event) => setRepoId(event.target.value)}
+                    disabled={reposQuery.isLoading || repos.length === 0}
+                    className="h-12 w-full rounded-xl border border-white/10 bg-black px-4 text-white outline-none transition focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {repos.length === 0 ? (
+                      <option value="">No repositories found</option>
+                    ) : (
+                      repos.map((repo) => (
+                        <option key={repo.id} value={repo.id}>
+                          {repo.fullName}{repo.private ? " (private)" : ""}
+                        </option>
+                      ))
+                    )}
+                  </select>
+                </label>
+
+                <label className="space-y-2 text-sm text-neutral-300">
+                  <span className="flex items-center gap-2 font-medium text-white">
+                    <GitPullRequest className="h-4 w-4 text-neutral-500" />
+                    Pull request number
+                  </span>
+                  <input
+                    value={prNumber}
+                    onChange={(event) => setPrNumber(event.target.value)}
+                    inputMode="numeric"
+                    className="h-12 w-full rounded-xl border border-white/10 bg-black px-4 text-white outline-none transition placeholder:text-neutral-700 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20"
+                    placeholder="42"
+                  />
+                </label>
+              </div>
+
+              <div className="flex flex-col gap-4 border-t border-white/10 pt-5 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-center gap-2 text-xs text-neutral-500">
+                  <LockKeyhole className="h-4 w-4 text-neutral-600" />
+                  Private repositories appear when GitHub access is enabled.
+                </div>
+                <button
+                  type="button"
+                  onClick={() => startGitHubReview.mutate()}
+                  disabled={!canStartGitHubReview || startGitHubReview.isPending}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-white px-6 py-3 text-sm font-semibold text-black shadow-[0_0_20px_rgba(255,255,255,0.12)] transition hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
                 >
-                  {repos.length === 0 ? (
-                    <option value="">No repositories found</option>
+                  {startGitHubReview.isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Starting Review...
+                    </>
                   ) : (
-                    repos.map((repo) => (
-                      <option key={repo.id} value={repo.id}>
-                        {repo.fullName}{repo.private ? " (private)" : ""}
-                      </option>
-                    ))
+                    <>
+                      Start GitHub Review
+                      <ArrowRight className="h-4 w-4" />
+                    </>
                   )}
-                </select>
-              </label>
+                </button>
+              </div>
 
-              <label className="space-y-2 text-sm text-slate-300">
-                <span>Pull request number</span>
-                <input
-                  value={prNumber}
-                  onChange={(event) => setPrNumber(event.target.value)}
-                  inputMode="numeric"
-                  className="w-full rounded-2xl border border-white/10 bg-[#0d1524] px-4 py-3 text-white outline-none transition focus:border-signal.mint"
-                  placeholder="42"
-                />
-              </label>
+              {reposQuery.error ? (
+                <p className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+                  {reposQuery.error.message}
+                </p>
+              ) : null}
 
-              <button
-                type="button"
-                onClick={() => startGitHubReview.mutate()}
-                disabled={!canStartGitHubReview || startGitHubReview.isPending}
-                className="w-full rounded-full bg-paper px-6 py-3 font-medium text-ink transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto sm:self-start"
-              >
-                {startGitHubReview.isPending ? "Starting GitHub Review..." : "Start GitHub Review"}
-              </button>
+              {startGitHubReview.error ? (
+                <p className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+                  {startGitHubReview.error.message}
+                </p>
+              ) : null}
             </div>
-
-            {reposQuery.error ? (
-              <p className="mt-5 rounded-2xl border border-signal.red/30 bg-signal.red/10 px-4 py-3 text-sm text-signal.red">
-                {reposQuery.error.message}
-              </p>
-            ) : null}
-
-            {startGitHubReview.error ? (
-              <p className="mt-5 rounded-2xl border border-signal.red/30 bg-signal.red/10 px-4 py-3 text-sm text-signal.red">
-                {startGitHubReview.error.message}
-              </p>
-            ) : null}
           </section>
 
-          <section className="flex flex-col justify-between rounded-3xl border border-white/10 bg-white/[0.04] p-6 shadow-card">
-            <div>
-              <h2 className="text-xl font-medium text-white">Web Editor</h2>
-              <p className="mt-2 text-sm leading-7 text-slate-300">
-                Paste a snippet into the Monaco editor, adjust the detected language, and stream the review immediately.
-              </p>
+          <section className="flex min-h-[420px] flex-col overflow-hidden rounded-3xl border border-white/10 bg-[#080809] shadow-2xl">
+            <div className="border-b border-white/10 bg-[#0d0d0f] px-5 py-5 lg:px-6">
+              <div className="flex items-start gap-4">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04]">
+                  <Code2 className="h-5 w-5 text-emerald-400" />
+                </div>
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500">Web Editor</p>
+                  <h2 className="mt-2 text-2xl font-semibold text-white">Review pasted code</h2>
+                </div>
+              </div>
             </div>
-            <Link
-              className="mt-8 inline-flex rounded-full bg-signal.blue px-6 py-3 font-medium text-white transition hover:bg-blue-500"
-              href="/review/new"
-            >
-              Open Web Editor
-            </Link>
+
+            <div className="flex flex-1 flex-col justify-between gap-8 p-5 lg:p-6">
+              <div>
+                <p className="text-sm leading-7 text-neutral-400">
+                  Paste a snippet into Monaco, confirm the detected language, and stream issue cards without choosing a repository.
+                </p>
+                <div className="mt-6 overflow-hidden rounded-2xl border border-white/10 bg-black">
+                  <div className="flex items-center gap-2 border-b border-white/10 bg-[#0d0d0f] px-4 py-3">
+                    <span className="h-2.5 w-2.5 rounded-full bg-red-500/80" />
+                    <span className="h-2.5 w-2.5 rounded-full bg-yellow-500/80" />
+                    <span className="h-2.5 w-2.5 rounded-full bg-green-500/80" />
+                    <span className="ml-2 font-mono text-[10px] text-neutral-600">untitled.ts</span>
+                  </div>
+                  <div className="space-y-3 p-4 font-mono text-xs">
+                    <p className="text-neutral-500"><span className="mr-4 text-neutral-700">1</span><span className="text-blue-300">function</span> review(code) {"{"}</p>
+                    <p className="pl-8 text-neutral-400"><span className="text-emerald-300">return</span> mentor.analyze(code);</p>
+                    <p className="text-neutral-500"><span className="mr-4 text-neutral-700">3</span>{"}"}</p>
+                  </div>
+                </div>
+              </div>
+
+              <Link
+                className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-6 py-3 text-sm font-semibold text-white transition hover:border-white/20 hover:bg-white/[0.08] sm:w-auto sm:self-start"
+                href="/review/new"
+              >
+                <Sparkles className="h-4 w-4 text-blue-400" />
+                Open Web Editor
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            </div>
           </section>
         </div>
-      </div>
-    </main>
+      </main>
+    </div>
   );
 }

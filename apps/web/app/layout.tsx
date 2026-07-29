@@ -15,7 +15,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className="flex min-h-screen flex-col bg-ink text-paper antialiased">
+      <body className="flex min-h-screen flex-col bg-[#050505] text-white antialiased">
         <AppProviders>
           <AppShell>{children}</AppShell>
         </AppProviders>

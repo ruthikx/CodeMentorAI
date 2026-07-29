@@ -1,5 +1,6 @@
 "use client";
 
+import { Bug, Sparkles } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { ReviewIssue, ReviewSeverity } from "../lib/review";
 import { IssueCard } from "./issue-card";
@@ -88,14 +89,34 @@ export function IssueCardPreview() {
   );
 
   return (
-    <main className="min-h-screen bg-[linear-gradient(180deg,_#09111f_0%,_#101c30_100%)] px-6 py-10 lg:px-10">
-      <div className="mx-auto max-w-7xl space-y-8">
-        <header className="space-y-3">
-          <p className="text-sm uppercase tracking-[0.32em] text-signal.mint">IssueCard Mock</p>
-          <h1 className="text-4xl font-semibold text-white">Review issue card preview</h1>
-          <p className="max-w-3xl text-sm leading-7 text-slate-300">
-            Mock data only. Use this page to check severity colors, Monaco diff loading, card focus, and accept/reject button states before wiring the review stream.
-          </p>
+    <main className="relative min-h-screen overflow-hidden bg-[#050505] px-6 py-10 text-white lg:px-10 lg:py-12">
+      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_right,#4f4f4f14_1px,transparent_1px),linear-gradient(to_bottom,#4f4f4f14_1px,transparent_1px)] bg-[size:24px_24px] [mask-image:linear-gradient(to_bottom,#000_0%,transparent_74%)]" />
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-80 bg-[radial-gradient(ellipse_at_top,rgba(59,130,246,0.14),transparent_68%)]" />
+
+      <div className="relative z-10 mx-auto max-w-[1400px] space-y-8">
+        <header className="grid gap-8 border-b border-white/5 pb-10 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-end">
+          <div className="max-w-4xl space-y-5">
+            <div className="inline-flex items-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.04] px-3 py-1.5 text-sm font-medium text-neutral-300">
+              <Bug className="h-4 w-4 text-blue-400" />
+              Issue Card Mock
+            </div>
+            <div className="space-y-4">
+              <h1 className="bg-gradient-to-b from-white to-neutral-500 bg-clip-text text-[2.75rem] font-bold leading-[1.08] tracking-normal text-transparent sm:text-6xl">
+                Review issue card preview.
+              </h1>
+              <p className="max-w-3xl text-base leading-7 text-neutral-400 sm:text-lg">
+                Check severity colors, Monaco diff loading, keyboard focus, and accept or reject states with local mock data.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-5">
+            <Sparkles className="h-5 w-5 text-blue-400" />
+            <div>
+              <p className="text-2xl font-semibold text-white">{issues.length}</p>
+              <p className="text-xs uppercase tracking-[0.18em] text-neutral-500">Mock findings</p>
+            </div>
+          </div>
         </header>
 
         <div className="grid gap-5">

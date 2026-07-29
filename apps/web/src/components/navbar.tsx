@@ -12,6 +12,7 @@ import logoImage from "../../public/logo.png";
 const navItems = [
   { href: "/review/new", label: "Review" },
   { href: "/repo-review", label: "Repo Review" },
+  { href: "/github", label: "GitHub" },
   { href: "/history", label: "History" },
   { href: "/dashboard", label: "Dashboard" }
 ];
@@ -108,7 +109,7 @@ export function Navbar() {
                 Login
               </Link>
               <Link
-                className="relative inline-flex h-10 items-center justify-center rounded-[12px] bg-gradient-to-r from-blue-600 to-purple-600/85 px-5 text-sm font-medium text-white shadow-[0_0_15px_rgba(37,99,235,0.2)] transition-all duration-300 hover:scale-[1.03] hover:from-blue-500 hover:to-purple-500/95 hover:shadow-[0_0_25px_rgba(37,99,235,0.4)] focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+                className="relative inline-flex h-10 items-center justify-center rounded-full bg-white px-5 text-sm font-semibold text-black shadow-[0_0_18px_rgba(255,255,255,0.12)] transition-all duration-300 hover:bg-neutral-100 hover:shadow-[0_0_24px_rgba(255,255,255,0.2)] focus:outline-none focus:ring-2 focus:ring-white/30"
                 href={`/signup${authCallbackUrl}`}
               >
                 Sign up
@@ -137,16 +138,24 @@ export function Navbar() {
             transition={{ duration: 0.2, ease: "easeOut" }}
           >
             <div className="flex flex-col gap-5 px-6 py-6">
-              {navItems.map((item) => (
-                <Link
-                  key={item.href}
-                  className="text-base font-medium text-[rgba(255,255,255,0.7)] transition-colors duration-300 hover:text-white"
-                  href={item.href}
-                  onClick={() => setIsMobileMenuOpen(false)}
-                >
-                  {item.label}
-                </Link>
-              ))}
+              {navItems.map((item) => {
+                const isActive = pathname === item.href || pathname?.startsWith(`${item.href}/`);
+
+                return (
+                  <Link
+                    key={item.href}
+                    className={`border-l-2 py-1 pl-4 text-base font-medium transition-colors duration-300 ${
+                      isActive
+                        ? "border-blue-400 text-white"
+                        : "border-transparent text-[rgba(255,255,255,0.7)] hover:text-white"
+                    }`}
+                    href={item.href}
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
+                    {item.label}
+                  </Link>
+                );
+              })}
 
               {status === "loading" ? (
                 <div className="mt-2 h-11 w-full rounded-[12px] bg-white/10" aria-label="Loading session" />
@@ -176,7 +185,7 @@ export function Navbar() {
                     Login
                   </Link>
                   <Link
-                    className="inline-flex h-11 w-full items-center justify-center rounded-[12px] bg-gradient-to-r from-blue-600 to-purple-600/80 px-6 text-sm font-medium text-white shadow-[0_0_15px_rgba(37,99,235,0.2)] transition-all duration-300 hover:shadow-[0_0_25px_rgba(37,99,235,0.4)]"
+                    className="inline-flex h-11 w-full items-center justify-center rounded-full bg-white px-6 text-sm font-semibold text-black shadow-[0_0_18px_rgba(255,255,255,0.12)] transition-all duration-300 hover:bg-neutral-100 hover:shadow-[0_0_24px_rgba(255,255,255,0.2)]"
                     href={`/signup${authCallbackUrl}`}
                     onClick={() => setIsMobileMenuOpen(false)}
                   >

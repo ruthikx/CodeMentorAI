@@ -1,76 +1,85 @@
 import Image from "next/image";
 import Link from "next/link";
 import logoImage from "../../public/logo.png";
+
+const footerSections = [
+  {
+    title: "Platform",
+    links: [
+      { href: "/review/new", label: "Review Code" },
+      { href: "/repo-review", label: "Repo Review" },
+      { href: "/github", label: "GitHub" },
+      { href: "/history", label: "History" }
+    ]
+  },
+  {
+    title: "Workspace",
+    links: [
+      { href: "/dashboard", label: "Dashboard" },
+      { href: "/review/new", label: "Web Editor" },
+      { href: "/repo-review", label: "Project Scan" },
+      { href: "/history", label: "Past Reviews" }
+    ]
+  },
+  {
+    title: "Account",
+    links: [
+      { href: "/login", label: "Login" },
+      { href: "/signup", label: "Sign up" },
+      { href: "/", label: "Home" },
+      { href: "https://github.com/ruthikx/CodeMentorAI", label: "Source" }
+    ]
+  }
+];
+
 export function Footer() {
   return (
-    <footer className="border-t border-white/5 bg-[#010101]">
-      <div className="mx-auto grid max-w-[1400px] grid-cols-2 gap-8 px-6 py-16 md:grid-cols-6">
-        <div className="col-span-2">
-          <div className="mb-6 flex items-center gap-3">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/[0.04] ring-1 ring-white/10 transition-all duration-300 group-hover:bg-white/[0.08] group-hover:ring-white/20">
-                        <Image
-                          src={logoImage}
-                          alt="CodeMentor AI"
-                          width={40}
-                          height={40}
-                          priority
-                          unoptimized
-                          className="h-8 w-8 object-contain transition-transform duration-300 group-hover:scale-110"
-                        />
-                      </div>
-            <span className="text-xl font-semibold tracking-tight text-white">CodeMentor AI</span>
-          </div>
-          <p className="max-w-xs text-sm leading-relaxed text-neutral-500">
-            The live code review workspace that helps you ship cleaner code and understand the reasoning behind each fix.
+    <footer className="border-t border-white/5 bg-[#010101] text-white">
+      <div className="mx-auto grid max-w-[1400px] gap-12 px-6 py-14 md:grid-cols-[minmax(0,1.5fr)_2fr]">
+        <div>
+          <Link className="group inline-flex items-center gap-3" href="/">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/[0.04] ring-1 ring-white/10 transition group-hover:bg-white/[0.08] group-hover:ring-white/20">
+              <Image
+                src={logoImage}
+                alt="CodeMentor AI"
+                width={36}
+                height={36}
+                unoptimized
+                className="h-9 w-9 object-contain"
+              />
+            </div>
+            <span className="text-lg font-semibold tracking-tight">CodeMentor AI</span>
+          </Link>
+          <p className="mt-5 max-w-sm text-sm leading-7 text-neutral-500">
+            A live code review workspace for finding issues, applying fixes, and learning the reasoning behind each change.
           </p>
         </div>
 
-        <div>
-          <h4 className="mb-6 text-sm font-medium text-white">Platform</h4>
-          <ul className="space-y-4 text-xs text-neutral-500">
-            <li><Link className="transition-colors hover:text-white" href="/review/new">Review Code</Link></li>
-            <li><Link className="transition-colors hover:text-white" href="/repo-review">Repo Scan</Link></li>
-            <li><Link className="transition-colors hover:text-white" href="/history">History</Link></li>
-            <li><Link className="transition-colors hover:text-white" href="/dashboard">Dashboard</Link></li>
-          </ul>
-        </div>
-
-        <div>
-          <h4 className="mb-6 text-sm font-medium text-white">Resources</h4>
-          <ul className="space-y-4 text-xs text-neutral-500">
-            <li><Link className="transition-colors hover:text-white" href="/review/new">Code Review</Link></li>
-            <li><Link className="transition-colors hover:text-white" href="/github">Web Editor</Link></li>
-            <li><Link className="transition-colors hover:text-white" href="/history">Past Reviews</Link></li>
-            <li><Link className="transition-colors hover:text-white" href="/dashboard">Insights</Link></li>
-          </ul>
-        </div>
-
-        <div>
-          <h4 className="mb-6 text-sm font-medium text-white">Account</h4>
-          <ul className="space-y-4 text-xs text-neutral-500">
-            <li><Link className="transition-colors hover:text-white" href="/login">Login</Link></li>
-            <li><Link className="transition-colors hover:text-white" href="/signup">Sign up</Link></li>
-            <li><Link className="transition-colors hover:text-white" href="/repo-review">Repository Review</Link></li>
-            <li><Link className="transition-colors hover:text-white" href="/github">GitHub Tools</Link></li>
-          </ul>
-        </div>
-
-        <div>
-          <h4 className="mb-6 text-sm font-medium text-white">Explore</h4>
-          <ul className="space-y-4 text-xs text-neutral-500">
-            <li><Link className="transition-colors hover:text-white" href="/">Home</Link></li>
-            <li><Link className="transition-colors hover:text-white" href="/review/new">Start Review</Link></li>
-            <li><Link className="transition-colors hover:text-white" href="/dashboard">Progress</Link></li>
-            <li><Link className="transition-colors hover:text-white" href="/history">Archive</Link></li>
-          </ul>
+        <div className="grid grid-cols-2 gap-8 sm:grid-cols-3">
+          {footerSections.map((section) => (
+            <div key={section.title}>
+              <h2 className="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-300">{section.title}</h2>
+              <ul className="mt-5 space-y-3 text-sm text-neutral-500">
+                {section.links.map((link) => (
+                  <li key={`${section.title}:${link.href}`}>
+                    <Link className="transition-colors hover:text-white" href={link.href}>
+                      {link.label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
         </div>
       </div>
 
-      <div className="mx-auto flex max-w-[1400px] flex-col items-center justify-between gap-4 border-t border-white/5 px-6 py-8 text-xs text-neutral-600 md:flex-row">
-        <div><span className="text-white">Built with 💗 by Ruthik.</span> Copyright 2026 CodeMentor AI. All rights reserved.</div>
-        <div className="flex gap-6">
-          <Link className="transition-colors hover:text-white" href="https://github.com/ruthikx/CodeMentorAI">GitHub</Link>
-    </div>
+      <div className="border-t border-white/5">
+        <div className="mx-auto flex max-w-[1400px] flex-col gap-3 px-6 py-6 text-xs text-neutral-600 sm:flex-row sm:items-center sm:justify-between">
+          <p>Built by Ruthik. Copyright 2026 CodeMentor AI.</p>
+          <Link className="transition-colors hover:text-white" href="https://github.com/ruthikx/CodeMentorAI">
+            View on GitHub
+          </Link>
+        </div>
       </div>
     </footer>
   );

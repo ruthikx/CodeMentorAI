@@ -1,6 +1,7 @@
 "use client";
 
 import { signIn } from "next-auth/react";
+import { ArrowRight, Github, LockKeyhole, Mail, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { resolveAppRedirectUrl } from "../lib/redirect";
@@ -36,68 +37,83 @@ export function LoginForm({ callbackUrl = "/dashboard" }: { callbackUrl?: string
   }
 
   return (
-    <div className="mx-auto w-full max-w-md rounded-lg border border-white/10 bg-white/[0.04] p-6 shadow-card">
-      <p className="text-sm uppercase tracking-[0.32em] text-signal.mint">Login</p>
-      <h1 className="mt-3 text-3xl font-semibold text-white">Sign in to CodeMentor AI</h1>
+    <section className="mx-auto w-full max-w-[460px] overflow-hidden rounded-3xl border border-white/10 bg-[#080809] shadow-2xl">
+      <div className="border-b border-white/10 bg-[#0d0d0f] px-6 py-6">
+        <div className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500">
+          <Sparkles className="h-4 w-4 text-blue-400" />
+          Account access
+        </div>
+        <h1 className="mt-3 text-3xl font-semibold tracking-tight text-white">Sign in to CodeMentor AI</h1>
+        <p className="mt-2 text-sm leading-6 text-neutral-400">Open your saved reviews and learning workspace.</p>
+      </div>
 
-      <form className="mt-8 space-y-5" onSubmit={handleSubmit}>
+      <form className="space-y-5 p-6" onSubmit={handleSubmit}>
         <label className="block">
-          <span className="text-sm font-medium text-slate-200">Email</span>
-          <input
-            className="mt-2 w-full rounded-md border border-white/10 bg-ink px-4 py-3 text-white outline-none transition focus:border-signal.blue"
-            name="email"
-            type="email"
-            autoComplete="email"
-            required
-          />
+          <span className="text-sm font-medium text-neutral-200">Email</span>
+          <div className="relative mt-2">
+            <Mail className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-600" />
+            <input
+              className="h-12 w-full rounded-xl border border-white/10 bg-black pl-11 pr-4 text-white outline-none transition placeholder:text-neutral-700 focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20"
+              name="email"
+              type="email"
+              autoComplete="email"
+              placeholder="you@example.com"
+              required
+            />
+          </div>
         </label>
 
         <label className="block">
-          <span className="text-sm font-medium text-slate-200">Password</span>
-          <input
-            className="mt-2 w-full rounded-md border border-white/10 bg-ink px-4 py-3 text-white outline-none transition focus:border-signal.blue"
-            name="password"
-            type="password"
-            autoComplete="current-password"
-            required
-          />
+          <span className="text-sm font-medium text-neutral-200">Password</span>
+          <div className="relative mt-2">
+            <LockKeyhole className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-600" />
+            <input
+              className="h-12 w-full rounded-xl border border-white/10 bg-black pl-11 pr-4 text-white outline-none transition focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20"
+              name="password"
+              type="password"
+              autoComplete="current-password"
+              required
+            />
+          </div>
         </label>
 
         {error ? (
-          <p className="rounded-md border border-signal.red/40 bg-signal.red/10 px-4 py-3 text-sm text-red-100">
+          <p className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
             {error}
           </p>
         ) : null}
 
         <button
-          className="w-full rounded-md bg-signal.blue px-4 py-3 font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-full bg-white px-4 text-sm font-semibold text-black shadow-[0_0_20px_rgba(255,255,255,0.12)] transition hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-60"
           type="submit"
           disabled={isSubmitting}
         >
           {isSubmitting ? "Signing in..." : "Sign in"}
+          {!isSubmitting ? <ArrowRight className="h-4 w-4" /> : null}
         </button>
+
+        <div className="flex items-center gap-3 text-xs uppercase tracking-[0.2em] text-neutral-600">
+          <span className="h-px flex-1 bg-white/10" />
+          or
+          <span className="h-px flex-1 bg-white/10" />
+        </div>
+
+        <button
+          className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 text-sm font-semibold text-white transition hover:border-white/20 hover:bg-white/[0.08]"
+          type="button"
+          onClick={() => signIn("github", { callbackUrl })}
+        >
+          <Github className="h-4 w-4" />
+          Continue with GitHub
+        </button>
+
+        <p className="text-center text-sm text-neutral-400">
+          New here?{" "}
+          <Link className="font-medium text-white transition hover:text-blue-300" href={`/signup?callbackUrl=${encodeURIComponent(callbackUrl)}`}>
+            Create an account
+          </Link>
+        </p>
       </form>
-
-      <div className="my-6 flex items-center gap-3 text-xs uppercase tracking-[0.24em] text-slate-500">
-        <span className="h-px flex-1 bg-white/10" />
-        or
-        <span className="h-px flex-1 bg-white/10" />
-      </div>
-
-      <button
-        className="w-full rounded-md border border-white/10 px-4 py-3 font-semibold text-white transition hover:bg-white/10"
-        type="button"
-        onClick={() => signIn("github", { callbackUrl })}
-      >
-        Continue with GitHub
-      </button>
-
-      <p className="mt-6 text-center text-sm text-slate-300">
-        New here?{" "}
-        <Link className="font-medium text-signal.mint hover:text-white" href={`/signup?callbackUrl=${encodeURIComponent(callbackUrl)}`}>
-          Create an account
-        </Link>
-      </p>
-    </div>
+    </section>
   );
 }
