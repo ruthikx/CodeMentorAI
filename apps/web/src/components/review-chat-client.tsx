@@ -166,7 +166,7 @@ export function ReviewChatClient({ reviewId }: { reviewId: string }) {
                   <p className="mb-2 text-xs font-semibold uppercase tracking-[0.22em] opacity-70">
                     {message.role === "user" ? "You" : "AI Coach"}
                   </p>
-                  <p>{message.content}</p>
+                  <ChatMessageContent content={message.content} />
                 </article>
               ))}
             </div>
@@ -206,6 +206,14 @@ export function ReviewChatClient({ reviewId }: { reviewId: string }) {
           </section>
         </div>
       </main>
+    </div>
+  );
+}
+
+function ChatMessageContent({ content }: { content: string }) {
+  return (
+    <div className="whitespace-pre-wrap break-words text-sm leading-7">
+      {content}
     </div>
   );
 }
