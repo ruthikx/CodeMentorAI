@@ -5,7 +5,10 @@ import { AppShell } from "../src/components/app-shell";
 
 export const metadata: Metadata = {
   title: "CodeMentor AI",
-  description: "Frontend app for the CodeMentor AI monorepo."
+  description: "Frontend app for the CodeMentor AI monorepo.",
+  icons: {
+    icon: "/logo.png"
+  }
 };
 
 export default function RootLayout({
